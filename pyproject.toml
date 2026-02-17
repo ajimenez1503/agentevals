@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "trace-eval"
+version = "0.1.0"
+description = "Standalone CLI to evaluate agent traces using ADK's scoring framework"
+requires-python = ">=3.11"
+dependencies = [
+    "google-adk[eval]",
+    "click>=8.0",
+    "tabulate>=0.9.0",
+    "pandas>=2.2.3",
+]
+
+[project.scripts]
+trace-eval = "trace_eval.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trace_eval"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

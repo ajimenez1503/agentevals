@@ -1,0 +1,337 @@
+"""Evaluation runner — orchestrates trace loading, conversion, and scoring."""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Optional
+
+from google.adk.evaluation.eval_case import EvalCase, Invocation
+from google.adk.evaluation.eval_metrics import (
+    BaseCriterion,
+    EvalMetric,
+    JudgeModelOptions,
+    LlmAsAJudgeCriterion,
+    HallucinationsCriterion,
+    RubricsBasedCriterion,
+    ToolTrajectoryCriterion,
+)
+from google.adk.evaluation.eval_set import EvalSet
+from google.adk.evaluation.evaluator import EvaluationResult, Evaluator
+
+from .config import EvalRunConfig
+from .converter import ConversionResult, convert_traces
+from .loader.base import TraceLoader
+from .loader.jaeger import JaegerJsonLoader
+
+logger = logging.getLogger(__name__)
+
+_METRICS_NEEDING_EXPECTED = {
+    "tool_trajectory_avg_score",
+    "response_match_score",
+    "response_evaluation_score",
+    "final_response_match_v2",
+}
+
+_METRICS_NEEDING_LLM = {
+    "final_response_match_v2",
+    "rubric_based_final_response_quality_v1",
+    "hallucinations_v1",
+    "safety_v1",
+    "rubric_based_tool_use_quality_v1",
+    "per_turn_user_simulator_quality_v1",
+}
+
+
+@dataclass
+class MetricResult:
+    metric_name: str
+    score: float | None = None
+    eval_status: str = "NOT_EVALUATED"
+    per_invocation_scores: list[float | None] = field(default_factory=list)
+    error: str | None = None
+
+
+@dataclass
+class TraceResult:
+    trace_id: str
+    num_invocations: int = 0
+    metric_results: list[MetricResult] = field(default_factory=list)
+    conversion_warnings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RunResult:
+    trace_results: list[TraceResult] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+def get_loader(format_name: str) -> TraceLoader:
+    loaders: dict[str, type[TraceLoader]] = {
+        "jaeger-json": JaegerJsonLoader,
+    }
+    if format_name not in loaders:
+        raise ValueError(
+            f"Unknown trace format '{format_name}'. Available: {list(loaders.keys())}"
+        )
+    return loaders[format_name]()
+
+
+def load_eval_set(path: str) -> EvalSet:
+    with open(path, "r") as f:
+        data = json.load(f)
+    return EvalSet.model_validate(data)
+
+
+def run_evaluation(config: EvalRunConfig) -> RunResult:
+    result = RunResult()
+
+    loader = get_loader(config.trace_format)
+    all_traces = []
+    for trace_file in config.trace_files:
+        try:
+            traces = loader.load(trace_file)
+            all_traces.extend(traces)
+        except Exception as exc:
+            msg = f"Failed to load trace file '{trace_file}': {exc}"
+            logger.error(msg)
+            result.errors.append(msg)
+
+    if not all_traces:
+        result.errors.append("No traces loaded.")
+        return result
+
+    conversion_results = convert_traces(all_traces)
+
+    eval_set: EvalSet | None = None
+    if config.eval_set_file:
+        try:
+            eval_set = load_eval_set(config.eval_set_file)
+        except Exception as exc:
+            msg = f"Failed to load eval set '{config.eval_set_file}': {exc}"
+            logger.error(msg)
+            result.errors.append(msg)
+
+    for conv_result in conversion_results:
+        trace_result = _evaluate_trace(
+            conv_result=conv_result,
+            metrics=config.metrics,
+            eval_set=eval_set,
+            judge_model=config.judge_model,
+            threshold=config.threshold,
+        )
+        result.trace_results.append(trace_result)
+
+    return result
+
+
+def _evaluate_trace(
+    conv_result: ConversionResult,
+    metrics: list[str],
+    eval_set: EvalSet | None,
+    judge_model: str | None,
+    threshold: float | None,
+) -> TraceResult:
+    trace_result = TraceResult(
+        trace_id=conv_result.trace_id,
+        num_invocations=len(conv_result.invocations),
+        conversion_warnings=conv_result.warnings,
+    )
+
+    if not conv_result.invocations:
+        trace_result.metric_results.append(
+            MetricResult(
+                metric_name="(all)",
+                error="No invocations extracted from trace.",
+            )
+        )
+        return trace_result
+
+    actual_invocations = conv_result.invocations
+
+    expected_invocations: list[Invocation] | None = None
+    if eval_set:
+        expected_invocations = _find_expected_invocations(actual_invocations, eval_set)
+
+    for metric_name in metrics:
+        metric_result = _evaluate_metric(
+            metric_name=metric_name,
+            actual_invocations=actual_invocations,
+            expected_invocations=expected_invocations,
+            judge_model=judge_model,
+            threshold=threshold,
+        )
+        trace_result.metric_results.append(metric_result)
+
+    return trace_result
+
+
+def _evaluate_metric(
+    metric_name: str,
+    actual_invocations: list[Invocation],
+    expected_invocations: list[Invocation] | None,
+    judge_model: str | None,
+    threshold: float | None,
+) -> MetricResult:
+    if metric_name in _METRICS_NEEDING_EXPECTED and not expected_invocations:
+        return MetricResult(
+            metric_name=metric_name,
+            error=(
+                f"Metric '{metric_name}' requires expected invocations "
+                f"(golden eval set), but none were provided or matched."
+            ),
+        )
+
+    try:
+        eval_metric = _build_eval_metric(metric_name, judge_model, threshold)
+        evaluator: Evaluator = _get_evaluator(eval_metric)
+
+        eval_result: EvaluationResult = evaluator.evaluate_invocations(
+            actual_invocations=actual_invocations,
+            expected_invocations=expected_invocations,
+        )
+
+        per_inv_scores = [r.score for r in eval_result.per_invocation_results]
+
+        return MetricResult(
+            metric_name=metric_name,
+            score=eval_result.overall_score,
+            eval_status=eval_result.overall_eval_status.name,
+            per_invocation_scores=per_inv_scores,
+        )
+
+    except Exception as exc:
+        logger.exception("Failed to evaluate metric '%s'", metric_name)
+        return MetricResult(
+            metric_name=metric_name,
+            error=str(exc),
+        )
+
+
+def _build_eval_metric(
+    metric_name: str,
+    judge_model: str | None,
+    threshold: float | None,
+) -> EvalMetric:
+    effective_threshold = threshold if threshold is not None else 0.5
+
+    criterion: BaseCriterion | None = None
+
+    if metric_name == "tool_trajectory_avg_score":
+        criterion = ToolTrajectoryCriterion(threshold=effective_threshold)
+    elif metric_name in (
+        "final_response_match_v2",
+        "safety_v1",
+    ):
+        judge_opts = JudgeModelOptions()
+        if judge_model:
+            judge_opts.judge_model = judge_model
+        criterion = LlmAsAJudgeCriterion(
+            threshold=effective_threshold,
+            judge_model_options=judge_opts,
+        )
+    elif metric_name == "hallucinations_v1":
+        judge_opts = JudgeModelOptions()
+        if judge_model:
+            judge_opts.judge_model = judge_model
+        criterion = HallucinationsCriterion(
+            threshold=effective_threshold,
+            judge_model_options=judge_opts,
+        )
+    elif metric_name in (
+        "rubric_based_final_response_quality_v1",
+        "rubric_based_tool_use_quality_v1",
+    ):
+        judge_opts = JudgeModelOptions()
+        if judge_model:
+            judge_opts.judge_model = judge_model
+        criterion = RubricsBasedCriterion(
+            threshold=effective_threshold,
+            judge_model_options=judge_opts,
+        )
+    elif metric_name in ("response_match_score", "response_evaluation_score"):
+        criterion = BaseCriterion(threshold=effective_threshold)
+
+    return EvalMetric(
+        metric_name=metric_name,
+        threshold=threshold,
+        criterion=criterion,
+    )
+
+
+def _get_evaluator(eval_metric: EvalMetric) -> Evaluator:
+    """Resolve an evaluator, using direct imports for known lightweight metrics
+    to avoid pulling in heavy deps (numpy/rouge_score) via the full registry."""
+    name = eval_metric.metric_name
+
+    _DIRECT_EVALUATORS: dict[str, tuple[str, str]] = {
+        "tool_trajectory_avg_score": (
+            "google.adk.evaluation.trajectory_evaluator",
+            "TrajectoryEvaluator",
+        ),
+    }
+
+    if name in _DIRECT_EVALUATORS:
+        import importlib
+
+        mod_path, cls_name = _DIRECT_EVALUATORS[name]
+        mod = importlib.import_module(mod_path)
+        evaluator_cls = getattr(mod, cls_name)
+        return evaluator_cls(eval_metric=eval_metric)  # type: ignore[call-arg]
+
+    # Full registry — may trigger heavy imports (numpy, rouge_score, etc.)
+    from google.adk.evaluation.metric_evaluator_registry import (
+        DEFAULT_METRIC_EVALUATOR_REGISTRY,
+    )
+
+    return DEFAULT_METRIC_EVALUATOR_REGISTRY.get_evaluator(eval_metric)
+
+
+def _find_expected_invocations(
+    actual_invocations: list[Invocation],
+    eval_set: EvalSet,
+) -> list[Invocation] | None:
+    """Match actual invocations to an eval case. Uses the sole eval case if
+    there's only one, otherwise matches by user content text."""
+    if not eval_set.eval_cases:
+        return None
+
+    if len(eval_set.eval_cases) == 1:
+        case = eval_set.eval_cases[0]
+        if case.conversation:
+            return case.conversation
+        return None
+
+    actual_user_text = (
+        _get_user_text(actual_invocations[0]) if actual_invocations else None
+    )
+    if not actual_user_text:
+        case = eval_set.eval_cases[0]
+        return case.conversation if case.conversation else None
+
+    for case in eval_set.eval_cases:
+        if not case.conversation:
+            continue
+        expected_user_text = _get_user_text(case.conversation[0])
+        if expected_user_text and _text_matches(actual_user_text, expected_user_text):
+            return case.conversation
+
+    logger.warning(
+        "No matching eval case found for user text: '%s'. Using first eval case.",
+        actual_user_text[:100],
+    )
+    case = eval_set.eval_cases[0]
+    return case.conversation if case.conversation else None
+
+
+def _get_user_text(invocation: Invocation) -> str | None:
+    if not invocation.user_content or not invocation.user_content.parts:
+        return None
+    texts = [p.text for p in invocation.user_content.parts if p.text]
+    return " ".join(texts) if texts else None
+
+
+def _text_matches(a: str, b: str) -> bool:
+    return a.strip().lower() == b.strip().lower()
