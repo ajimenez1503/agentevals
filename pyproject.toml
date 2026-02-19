@@ -20,6 +20,9 @@ trace-eval = "trace_eval.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/trace_eval"]
 
+[tool.uv.extra-build-dependencies]
+"rouge_score-0.1.2" = ["setuptools"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
