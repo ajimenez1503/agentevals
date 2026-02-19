@@ -9,25 +9,25 @@ import { useTraceContext } from '../../context/TraceContext';
 const uploadViewStyle = css`
   max-width: 1600px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 20px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 
   .header {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
 
   .title {
-    font-size: 2rem;
+    font-size: 1.75rem;
     font-weight: 700;
     color: var(--text-primary);
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     text-align: center;
   }
 
   .subtitle {
-    font-size: 1rem;
+    font-size: 0.9rem;
     color: var(--text-secondary);
     text-align: center;
   }
@@ -35,24 +35,25 @@ const uploadViewStyle = css`
   .upload-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-    margin-bottom: 16px;
+    gap: 12px;
+    margin-bottom: 12px;
   }
 
   .section {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-default);
     border-radius: 8px;
-    padding: 16px;
+    padding: 12px;
     display: flex;
     flex-direction: column;
+    gap: 8px;
   }
 
   .section-title {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .metrics-section {
@@ -68,34 +69,34 @@ const uploadViewStyle = css`
   .setting-item {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
 
   .setting-label {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--text-primary);
   }
 
   .setting-hint {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-secondary);
-    margin-top: 2px;
+    margin-top: 0px;
   }
 
   .actions {
     display: flex;
     justify-content: center;
-    margin-top: 16px;
-    padding-top: 16px;
+    margin-top: 12px;
+    padding-top: 12px;
     border-top: 1px solid var(--border-default);
   }
 
   .run-button {
-    height: 48px;
-    font-size: 16px;
+    height: 44px;
+    font-size: 15px;
     font-weight: 600;
-    padding: 0 36px;
+    padding: 0 32px;
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -161,8 +162,37 @@ export const UploadView: React.FC = () => {
             onChange={actions.setTraceFiles}
           />
           {state.traceFiles.length > 0 && (
-            <div style={{ marginTop: 12, color: 'var(--text-secondary)', fontSize: '13px' }}>
-              {state.traceFiles.length} file(s) selected
+            <div style={{
+              marginTop: 12,
+              padding: '10px',
+              backgroundColor: 'var(--bg-elevated)',
+              borderRadius: '4px',
+              border: '1px solid var(--border-default)'
+            }}>
+              <div style={{
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontWeight: 600,
+                marginBottom: '6px'
+              }}>
+                {state.traceFiles.length} file(s) selected:
+              </div>
+              {state.traceFiles.map((file, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    color: 'var(--text-secondary)',
+                    fontSize: '11px',
+                    padding: '3px 6px',
+                    backgroundColor: 'var(--bg-surface)',
+                    borderRadius: '3px',
+                    marginTop: idx > 0 ? '3px' : '0',
+                    fontFamily: 'monospace'
+                  }}
+                >
+                  {file.name}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -175,8 +205,31 @@ export const UploadView: React.FC = () => {
             onChange={(files) => actions.setEvalSet(files[0] || null)}
           />
           {state.evalSetFile && (
-            <div style={{ marginTop: 12, color: 'var(--text-secondary)', fontSize: '13px' }}>
-              {state.evalSetFile.name}
+            <div style={{
+              marginTop: 12,
+              padding: '10px',
+              backgroundColor: 'var(--bg-elevated)',
+              borderRadius: '4px',
+              border: '1px solid var(--border-default)'
+            }}>
+              <div style={{
+                color: 'var(--text-primary)',
+                fontSize: '12px',
+                fontWeight: 600,
+                marginBottom: '6px'
+              }}>
+                Eval set file:
+              </div>
+              <div style={{
+                color: 'var(--text-secondary)',
+                fontSize: '11px',
+                padding: '3px 6px',
+                backgroundColor: 'var(--bg-surface)',
+                borderRadius: '3px',
+                fontFamily: 'monospace'
+              }}>
+                {state.evalSetFile.name}
+              </div>
             </div>
           )}
         </div>
@@ -206,7 +259,7 @@ export const UploadView: React.FC = () => {
             </span>
           </div>
 
-          <div className="setting-item" style={{ marginTop: 12 }}>
+          <div className="setting-item" style={{ marginTop: 10 }}>
             <label className="setting-label">Pass Threshold: {state.threshold}</label>
             <Slider
               min={0}

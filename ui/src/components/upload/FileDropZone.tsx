@@ -20,6 +20,7 @@ const dropZoneStyle = css`
     border: 2px dashed var(--border-default);
     border-radius: 8px;
     transition: all 0.3s ease;
+    padding: 16px !important;
 
     &:hover {
       border-color: var(--accent-cyan);
@@ -29,17 +30,20 @@ const dropZoneStyle = css`
 
   .ant-upload-drag-icon {
     color: var(--accent-cyan);
+    margin-bottom: 8px !important;
   }
 
   .ant-upload-text {
     color: var(--text-primary) !important;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 500;
+    margin: 0 0 4px 0 !important;
   }
 
   .ant-upload-hint {
     color: var(--text-secondary) !important;
-    font-size: 14px;
+    font-size: 12px;
+    margin: 0 !important;
   }
 `;
 
@@ -67,14 +71,14 @@ export const FileDropZone: React.FC<FileDropZoneProps> = ({
     onRemove: () => {
       onChange([]);
     },
-    showUploadList: true,
+    showUploadList: false,
   };
 
   return (
     <div css={dropZoneStyle}>
       <Dragger {...uploadProps}>
         <p className="ant-upload-drag-icon">
-          <FileJson size={48} />
+          <FileJson size={32} />
         </p>
         <p className="ant-upload-text">{title}</p>
         <p className="ant-upload-hint">{description}</p>

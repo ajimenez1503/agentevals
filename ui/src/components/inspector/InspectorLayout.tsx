@@ -8,7 +8,7 @@ interface InspectorLayoutProps {
 }
 
 const MIN_PANEL_WIDTH = 300;
-const MAX_PANEL_WIDTH = 800;
+const MAX_PANEL_WIDTH = 1000;
 const STORAGE_KEY = 'inspector-panel-widths';
 
 export const InspectorLayout: React.FC<InspectorLayoutProps> = ({
@@ -21,17 +21,17 @@ export const InspectorLayout: React.FC<InspectorLayoutProps> = ({
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const { left } = JSON.parse(stored);
-      return left || 400;
+      return left || 500;
     }
-    return 400;
+    return 500;
   });
   const [rightWidth, setRightWidth] = useState(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const { right } = JSON.parse(stored);
-      return right || 400;
+      return right || 600;
     }
-    return 400;
+    return 600;
   });
 
   const [isDraggingLeft, setIsDraggingLeft] = useState(false);
