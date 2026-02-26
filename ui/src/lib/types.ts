@@ -115,6 +115,7 @@ export interface PerformanceMetrics {
 
 export interface TraceResult {
   traceId: string;
+  sessionId?: string;
   numInvocations: number;
   metricResults: MetricResult[];
   conversionWarnings: string[];
@@ -145,6 +146,7 @@ export type TraceRowStatus = 'pending' | 'loading' | 'complete' | 'error';
 
 export interface TraceTableRow {
   traceId: string;
+  sessionId?: string;
   status: TraceRowStatus;
   agentName?: string;
   startTime?: number;
@@ -153,6 +155,7 @@ export interface TraceTableRow {
   finalOutputPreview?: string;
   metricResults: Map<string, MetricResult>;
   numInvocations?: number;
+  invocations?: Invocation[];
   conversionWarnings: string[];
   error?: string;
   performanceMetrics?: PerformanceMetrics;

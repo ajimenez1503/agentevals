@@ -1,13 +1,16 @@
 import { readFileAsText, safeJsonParse } from './utils';
-import type { Trace, Span } from './types';
+import type { Trace, Span, Invocation } from './types';
+import { convertTracesToInvocations } from './trace-converter';
 
 export interface TraceMetadata {
   traceId: string;
+  sessionId?: string;
   agentName?: string;
   startTime?: number;
   model?: string;
   userInputPreview?: string;
   finalOutputPreview?: string;
+  invocations?: Invocation[];
 }
 
 const TAG_SCOPE = 'otel.scope.name';
@@ -75,6 +78,27 @@ function extractFinalOutputPreview(llmResponseTag: string): string {
   return '';
 }
 
+function buildSpanTree(trace: Trace): void {
+  const spanMap = new Map<string, Span>();
+  for (const span of trace.allSpans) {
+    spanMap.set(span.spanId, span);
+    span.children = [];
+  }
+
+  for (const span of trace.allSpans) {
+    if (span.parentSpanId) {
+      const parent = spanMap.get(span.parentSpanId);
+      if (parent) {
+        parent.children.push(span);
+      }
+    }
+  }
+
+  trace.rootSpans = trace.allSpans.filter(
+    span => !span.parentSpanId || !spanMap.has(span.parentSpanId)
+  );
+}
+
 export function extractTraceMetadata(trace: Trace): TraceMetadata {
   const metadata: TraceMetadata = {
     traceId: trace.traceId,
@@ -103,6 +127,8 @@ export function extractTraceMetadata(trace: Trace): TraceMetadata {
       metadata.finalOutputPreview = extractFinalOutputPreview(llmResponseTag);
     }
   }
+
+  metadata.sessionId = metadata.agentName || trace.traceId.substring(0, 12);
 
   return metadata;
 }
@@ -209,5 +235,18 @@ export async function extractMetadataFromTraceFile(file: File): Promise<TraceMet
     }
   }
 
-  return traces.map(extractTraceMetadata);
+  for (const trace of traces) {
+    buildSpanTree(trace);
+  }
+
+  const invocationsMap = convertTracesToInvocations(traces);
+
+  return traces.map(trace => {
+    const metadata = extractTraceMetadata(trace);
+    const conversionResult = invocationsMap.get(trace.traceId);
+    if (conversionResult) {
+      metadata.invocations = conversionResult.invocations;
+    }
+    return metadata;
+  });
 }
