@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Table } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { css } from '@emotion/react';
-import { Clock, User, Cpu, MessageSquare, CheckCircle2, ChevronRight, ChevronDown } from 'lucide-react';
+import { Clock, User, Cpu, MessageSquare, ChevronRight, ChevronDown } from 'lucide-react';
 import type { AnnotationQueueItem } from '../../lib/types';
 
 interface AnnotationTableProps {
@@ -233,10 +233,9 @@ export const AnnotationTable: React.FC<AnnotationTableProps> = ({
           );
         }
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <CheckCircle2 size={14} color="var(--status-success)" />
-            <span style={{ fontSize: 11, color: 'var(--status-success)', fontWeight: 600 }}>Annotated</span>
-          </div>
+          <span style={{ fontSize: '18px', lineHeight: 1 }}>
+            {record.annotation.firstPass === 'looks_correct' ? '👍' : '👎'}
+          </span>
         );
       },
     },

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Select } from 'antd';
 import type { AnnotationQueueItem, Annotation, FirstPassLabel } from '../../lib/types';
 
 interface AnnotationDetailPanelProps {
@@ -222,16 +221,34 @@ export function AnnotationDetailPanel({ item, onSave, onClose }: AnnotationDetai
           <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
             First Pass
           </div>
-          <Select
-            value={firstPass}
-            onChange={(val) => setFirstPass(val)}
-            placeholder="Select assessment"
-            style={{ width: '100%' }}
-            options={[
-              { label: 'Looks correct', value: 'looks_correct' },
-              { label: "Doesn't look correct", value: 'doesnt_look_correct' },
-            ]}
-          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {(['looks_correct', 'doesnt_look_correct'] as FirstPassLabel[]).map((val) => {
+              const isSelected = firstPass === val;
+              const isPositive = val === 'looks_correct';
+              return (
+                <button
+                  key={val}
+                  onClick={() => setFirstPass(isSelected ? null : val)}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: `1.5px solid ${isSelected
+                      ? (isPositive ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 87, 87, 0.5)')
+                      : 'var(--border-default)'}`,
+                    background: isSelected
+                      ? (isPositive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 87, 87, 0.1)')
+                      : 'var(--bg-primary)',
+                    fontSize: '22px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {isPositive ? '👍' : '👎'}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>
@@ -296,8 +313,8 @@ export function AnnotationDetailPanel({ item, onSave, onClose }: AnnotationDetai
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Current annotation
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-              {item.annotation.firstPass === 'looks_correct' ? '✓ Looks correct' : '✗ Doesn\'t look correct'}
+            <div style={{ fontSize: '20px', lineHeight: 1 }}>
+              {item.annotation.firstPass === 'looks_correct' ? '👍' : '👎'}
             </div>
             {item.annotation.comment && (
               <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '4px' }}>

@@ -354,7 +354,7 @@ export const TraceTable: React.FC<TraceTableProps> = ({
         const isAnnotationExpanded = expandedAnnotationKeys.includes(record.traceId);
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div className="metric-cell" style={{ justifyContent: 'flex-start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               {annotation.comment && (
                 <span
                   onClick={(e) => {
@@ -370,21 +370,10 @@ export const TraceTable: React.FC<TraceTableProps> = ({
                   {isAnnotationExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </span>
               )}
-              {looksCorrect
-                ? <CheckCircle2 size={14} color="var(--status-success)" />
-                : <XCircle size={14} color="var(--status-failure)" />}
-              <span
-                className="score-badge"
-                style={{
-                  backgroundColor: looksCorrect ? 'rgba(46, 213, 115, 0.2)' : 'rgba(255, 87, 87, 0.2)',
-                  color: looksCorrect ? 'var(--status-success)' : 'var(--status-failure)',
-                }}
-              >
-                {looksCorrect ? 'Looks correct' : "Doesn't look correct"}
-              </span>
+              <span style={{ fontSize: '18px', lineHeight: 1 }}>{looksCorrect ? '👍' : '👎'}</span>
             </div>
             {isAnnotationExpanded && annotation.comment && (
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', paddingLeft: '20px' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', paddingLeft: '26px' }}>
                 {annotation.comment}
               </span>
             )}
