@@ -191,7 +191,7 @@ const layoutStyles = (leftWidth: number, centerWidth: number, showCenterPanel: b
   grid-template-columns: ${showCenterPanel
     ? `${leftWidth}px 1px ${centerWidth}px 1px 1fr`
     : `${leftWidth}px 1fr`};
-  height: calc(100vh - 64px); /* Subtract header height */
+  height: calc(100% - 64px);
   overflow: hidden;
 
   &.dragging {

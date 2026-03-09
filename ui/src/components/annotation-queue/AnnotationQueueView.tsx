@@ -106,7 +106,7 @@ export function AnnotationQueueView() {
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100vh',
+      height: '100%',
       overflow: 'hidden',
     }}>
       <div style={{
@@ -131,16 +131,6 @@ export function AnnotationQueueView() {
             </p>
           </div>
 
-          <button
-            onClick={() => actions.setCurrentView('streaming')}
-            style={{
-              padding: '8px 14px', borderRadius: '8px', background: 'transparent',
-              border: '1.5px solid var(--border)', color: 'var(--text-secondary)',
-              fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
-            }}
-          >
-            ← Live View
-          </button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>

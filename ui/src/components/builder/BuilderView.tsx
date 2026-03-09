@@ -25,14 +25,6 @@ export const BuilderView: React.FC = () => {
     message.success('EvalSet saved successfully!');
   };
 
-  const handleBack = () => {
-    if (state.results.length > 0) {
-      actions.setCurrentView('dashboard');
-    } else {
-      actions.setCurrentView('welcome');
-    }
-  };
-
   if (!state.builderEvalSet) {
     return <TraceUploadZone />;
   }
@@ -40,7 +32,6 @@ export const BuilderView: React.FC = () => {
   return (
     <div css={builderViewStyle}>
       <BuilderHeader
-        onBack={handleBack}
         onSave={handleSave}
         evalSetId={state.builderEvalSet.eval_set_id}
       />
@@ -78,7 +69,7 @@ export const BuilderView: React.FC = () => {
 };
 
 const builderViewStyle = css`
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);

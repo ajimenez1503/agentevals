@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Select, Slider } from 'antd';
 import { css } from '@emotion/react';
-import { Play, FileJson, ArrowLeft } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { FileDropZone } from './FileDropZone';
 import { MetricSelector } from './MetricSelector';
 import { useTraceContext } from '../../context/TraceContext';
@@ -10,7 +10,7 @@ const uploadViewStyle = css`
   max-width: 1600px;
   margin: 0 auto;
   padding: 20px;
-  min-height: 100vh;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
 
@@ -51,13 +51,11 @@ const uploadViewStyle = css`
     font-weight: 700;
     color: var(--text-primary);
     margin-bottom: 4px;
-    text-align: center;
   }
 
   .subtitle {
     font-size: 0.9rem;
     color: var(--text-secondary);
-    text-align: center;
   }
 
   .upload-grid {
@@ -194,13 +192,6 @@ export const UploadView: React.FC = () => {
     <div css={uploadViewStyle}>
       <div className="header">
         <div className="header-nav">
-          <button
-            className="nav-button"
-            onClick={() => actions.setCurrentView(state.evaluationOrigin === 'streaming' ? 'streaming' : 'welcome')}
-          >
-            <ArrowLeft size={16} />
-            {state.evaluationOrigin === 'streaming' ? 'Back to Live View' : 'Back to Welcome'}
-          </button>
           <div style={{ display: 'flex', gap: '8px' }}>
             {state.annotationQueues.some(q => q.items.length > 0) && (
               <button
@@ -211,18 +202,11 @@ export const UploadView: React.FC = () => {
                 Annotation Queues
               </button>
             )}
-            <button
-              className="nav-button"
-              onClick={() => actions.setCurrentView('builder')}
-            >
-              <FileJson size={16} />
-              Open EvalSet Builder
-            </button>
           </div>
         </div>
-        <h1 className="title">agentevals</h1>
+        <h1 className="title">Evaluations</h1>
         <p className="subtitle">
-          Evaluate agent behavior from OpenTelemetry traces without re-running agents
+          Evaluate agent behavior from OpenTelemetry traces
         </p>
       </div>
 

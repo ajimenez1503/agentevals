@@ -251,7 +251,7 @@ export const TraceProvider: React.FC<TraceProviderProps> = ({ children }) => {
           ...prev,
           results: [],
           errors: [],
-          currentView: 'welcome',
+          currentView: 'upload',
         })),
 
       createAnnotationQueue: (name: string) => {

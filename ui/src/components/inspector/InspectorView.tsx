@@ -322,7 +322,7 @@ export const InspectorView: React.FC = () => {
 
 const containerStyles = css`
   width: 100%;
-  height: 100vh;
+  height: 100%;
   background: var(--bg-primary);
   overflow: hidden;
 `;
@@ -332,7 +332,7 @@ const loadingContainerStyles = css`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: calc(100vh - 64px);
+  height: calc(100% - 64px);
   gap: 16px;
   color: var(--text-secondary);
 
@@ -359,7 +359,7 @@ const loadingSpinnerStyles = css`
 
 const errorContainerStyles = css`
   width: 100%;
-  height: calc(100vh - 64px);
+  height: calc(100% - 64px);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { css } from '@emotion/react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { TraceTable } from './TraceTable';
 import { SummaryStats } from './SummaryStats';
 import { PerformanceCharts } from './PerformanceCharts';
@@ -134,37 +134,6 @@ export const DashboardView: React.FC = () => {
       <div className="header">
         <h1 className="title">Evaluation Results</h1>
         <div style={{ display: 'flex', gap: '8px' }}>
-          {state.evaluationOrigin === 'streaming' && (
-            <button
-              onClick={() => actions.setCurrentView('streaming')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-default)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--accent-cyan)';
-                e.currentTarget.style.color = 'var(--accent-cyan)';
-                e.currentTarget.style.background = 'var(--bg-elevated)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-default)';
-                e.currentTarget.style.color = 'var(--text-primary)';
-                e.currentTarget.style.background = 'var(--bg-surface)';
-              }}
-            >
-              <ArrowLeft size={16} />
-              Live View
-            </button>
-          )}
           {state.annotationQueues.some(q => q.items.length > 0) && (
             <button
               onClick={() => actions.setCurrentView('annotation-queue')}
@@ -191,35 +160,6 @@ export const DashboardView: React.FC = () => {
               Annotation Queues
             </button>
           )}
-          <button
-            onClick={() => actions.setCurrentView('upload')}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: '1px solid var(--border-default)',
-              background: 'var(--bg-surface)',
-              color: 'var(--text-primary)',
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'var(--accent-cyan)';
-              e.currentTarget.style.color = 'var(--accent-cyan)';
-              e.currentTarget.style.background = 'var(--bg-elevated)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-default)';
-              e.currentTarget.style.color = 'var(--text-primary)';
-              e.currentTarget.style.background = 'var(--bg-surface)';
-            }}
-          >
-            <ArrowLeft size={16} />
-            Back
-          </button>
         </div>
       </div>
 

@@ -395,22 +395,6 @@ export function LiveStreamingView() {
               {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
             </div>
 
-            <button
-              onClick={() => actions.setCurrentView('upload')}
-              style={{
-                padding: '8px 14px',
-                borderRadius: '8px',
-                background: 'transparent',
-                border: '1.5px solid var(--border)',
-                color: 'var(--text-secondary)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              ← Upload View
-            </button>
           </div>
         </div>
 

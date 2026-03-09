@@ -51,10 +51,6 @@ export const TraceUploadZone: React.FC = () => {
     }
   }, [handleFileUpload]);
 
-  const handleBackToWelcome = () => {
-    actions.setCurrentView('upload');
-  };
-
   return (
     <div css={containerStyle}>
       <div css={contentStyle}>
@@ -88,16 +84,13 @@ export const TraceUploadZone: React.FC = () => {
           </label>
         </div>
 
-        <button css={backButtonStyle} onClick={handleBackToWelcome}>
-          ← Back to Main Page
-        </button>
       </div>
     </div>
   );
 };
 
 const containerStyle = css`
-  min-height: 100vh;
+  min-height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -199,21 +192,3 @@ const supportedFormatsStyle = css`
   margin-top: 8px;
 `;
 
-const backButtonStyle = css`
-  display: block;
-  margin: 24px auto 0;
-  padding: 12px 24px;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
-    background: var(--bg-elevated);
-  }
-`;
