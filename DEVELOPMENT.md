@@ -67,8 +67,24 @@ To release a new Nix derivation, update `flake.nix` with the new version and reb
 ## Releasing
 
 1. Bump `version` in `pyproject.toml`
-2. `make build` — core wheel
-3. `make build-bundle` — bundled wheel (overwrites the same filename in `dist/`)
-4. Publish the desired wheel to PyPI: `uv publish dist/agentevals-*.whl`
+2. Commit and push the change
+3. Tag and push — this triggers the release workflow automatically:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+4. Alternatively, trigger manually from **GitHub → Actions → Release → Run workflow** and enter the tag
 
-Both wheels share the same package name. Publish the bundled wheel if you want `pip install agentevals` to include the UI; publish the core wheel if you want a lightweight default.
+The workflow (`.github/workflows/release.yml`) runs `make release`, which produces two named wheels in `dist/`:
+
+```
+dist/agentevals-0.1.0-core-py3-none-any.whl    # CLI + REST API
+dist/agentevals-0.1.0-bundle-py3-none-any.whl  # CLI + REST API + streaming + embedded UI
+```
+
+Both are attached as artifacts to the GitHub Release. Users download the appropriate wheel:
+
+```bash
+pip install "agentevals-0.1.0-core-py3-none-any.whl"
+pip install "agentevals-0.1.0-bundle-py3-none-any.whl[live]"
+```
