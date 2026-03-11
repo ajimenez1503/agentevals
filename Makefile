@@ -1,7 +1,5 @@
 VERSION := $(shell grep '^version' pyproject.toml | cut -d'"' -f2)
 WHEEL := dist/agentevals-$(VERSION)-py3-none-any.whl
-WHEEL_CORE := dist/agentevals-$(VERSION)-core-py3-none-any.whl
-WHEEL_BUNDLE := dist/agentevals-$(VERSION)-bundle-py3-none-any.whl
 
 .PHONY: build build-bundle build-ui release clean dev-backend dev-frontend dev-bundle test
 
@@ -18,16 +16,19 @@ build-bundle: build-ui
 	rm -rf src/agentevals/_static
 
 release: clean build-ui
+	mkdir -p dist/core dist/bundle
 	uv build
-	mv $(WHEEL) $(WHEEL_CORE)
+	mv $(WHEEL) dist/core/
+	mv dist/*.tar.gz dist/core/
 	rm -rf src/agentevals/_static
 	cp -r ui/dist src/agentevals/_static
 	uv build
-	mv $(WHEEL) $(WHEEL_BUNDLE)
+	mv $(WHEEL) dist/bundle/
+	mv dist/*.tar.gz dist/bundle/
 	rm -rf src/agentevals/_static
 	@echo "Built:"
-	@echo "  core:   $(WHEEL_CORE)"
-	@echo "  bundle: $(WHEEL_BUNDLE)"
+	@echo "  core:   dist/core/$(notdir $(WHEEL))"
+	@echo "  bundle: dist/bundle/$(notdir $(WHEEL))"
 
 dev-backend:
 	uv run agentevals serve --dev

@@ -7,10 +7,11 @@ agentevals ships as three distinct configurations from a single codebase:
 | Tier | Install | Serve behavior |
 |------|---------|----------------|
 | **Core** | `pip install agentevals` | REST API only — stateless batch evaluation endpoints |
-| **Live** | `pip install "agentevals[live]"` | REST API + WebSocket streaming + session management + MCP |
-| **Bundle** | `pip install "agentevals[live]"` (bundled wheel) | Live + embedded React UI served at root |
+| **Bundle** | `pip install agentevals` (bundled wheel) | REST API + WebSocket streaming + session management + embedded React UI |
 
-The `[live]` extra adds `mcp` and `httpx`. The bundled wheel is built with `make build-bundle` and includes compiled UI assets baked into the package.
+Live mode (WebSocket streaming, session management, SSE) is enabled automatically when `--dev` is passed or when the bundled UI is detected — no extra dependencies required.
+
+The optional `[live]` extra (`pip install "agentevals[live]"`) adds `mcp` and `httpx`, which are only needed for the MCP server (`agentevals mcp`). The bundled wheel is built with `make build-bundle` and includes compiled UI assets baked into the package.
 
 ## Makefile
 
@@ -75,16 +76,21 @@ To release a new Nix derivation, update `flake.nix` with the new version and reb
    ```
 4. Alternatively, trigger manually from **GitHub → Actions → Release → Run workflow** and enter the tag
 
-The workflow (`.github/workflows/release.yml`) runs `make release`, which produces two named wheels in `dist/`:
+The workflow (`.github/workflows/release.yml`) runs `make release`, which builds the wheel twice (once without UI, once with embedded UI) into separate subdirectories:
 
 ```
-dist/agentevals-0.1.0-core-py3-none-any.whl    # CLI + REST API
-dist/agentevals-0.1.0-bundle-py3-none-any.whl  # CLI + REST API + streaming + embedded UI
+dist/core/agentevals-<version>-py3-none-any.whl    # CLI + REST API
+dist/bundle/agentevals-<version>-py3-none-any.whl  # CLI + REST API + streaming + embedded UI
 ```
 
-Both are attached as artifacts to the GitHub Release. Users download the appropriate wheel:
+Both wheels use the same standard filename (valid per PEP 427). They are attached as separate release assets to the GitHub Release. Users download the appropriate wheel:
 
 ```bash
-pip install "agentevals-0.1.0-core-py3-none-any.whl"
-pip install "agentevals-0.1.0-bundle-py3-none-any.whl[live]"
+pip install agentevals-<version>-py3-none-any.whl
+```
+
+To also use the MCP server (`agentevals mcp`), install with the `[live]` extra:
+
+```bash
+pip install "agentevals-<version>-py3-none-any.whl[live]"
 ```

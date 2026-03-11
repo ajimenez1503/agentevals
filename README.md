@@ -9,24 +9,30 @@ The tool provides a CLI for local dev work, scripting and CI pipelines, a web UI
 
 ## Installation
 
-Install from a release wheel:
+Download a release wheel from the [releases page](../../releases). Two variants are available — both share the same filename but differ in contents:
+
+| Variant | Description |
+|---------|-------------|
+| **core** | CLI + REST API — batch evaluation only |
+| **bundle** | CLI + REST API + WebSocket streaming + embedded web UI |
 
 ```bash
-# CLI + REST API (batch evaluation, lightweight)
-pip install agentevals
+pip install agentevals-<version>-py3-none-any.whl
+```
 
-# CLI + REST API + WebSocket streaming + MCP server
-pip install "agentevals[live]"
+The bundled wheel enables live streaming (WebSocket + SSE + session management) automatically when served.
 
-# Bundled: same as [live] but also serves the web UI at localhost:8001
+To also use the MCP server (`agentevals mcp`), install with the `[live]` extra which adds `mcp` and `httpx`:
+
+```bash
 pip install "agentevals-<version>-py3-none-any.whl[live]"
 ```
 
-The bundled wheel is built with `make build-bundle` and includes the React UI baked in. See [DEVELOPMENT.md](DEVELOPMENT.md) for build instructions.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for build instructions.
 
 ## Getting Started
 
-Install dependencies using `uv` or Nix`:
+Install dependencies using `uv` or Nix:
 
 ```bash
 # Using uv directly
@@ -189,4 +195,4 @@ uv run pytest tests/test_runner.py -v
 **How does this compare to ADK's evaulations?**
 Unlike ADK's LocalEvalService, which couples agent execution with evaluation, agentevals only handles scoring: it takes pre-recorded traces and compares them against expected behavior using metrics like tool trajectory matching, response quality, and LLM-based judgments. 
 
-However, if you're iterating on your agents locally, you can point your agents to agentevals and you will see rich runtime information in your browser. For more details, look into `agentevals[live]` and explore the Local Development option on the UI.
+However, if you're iterating on your agents locally, you can point your agents to agentevals and you will see rich runtime information in your browser. For more details, use the bundled wheel and explore the Local Development option in the UI.
