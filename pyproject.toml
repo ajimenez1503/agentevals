@@ -40,9 +40,7 @@ packages = ["src/agentevals"]
 "rouge_score-0.1.2" = ["setuptools"]
 
 [tool.uv.workspace]
-members = [
-    "examples",
-]
+members = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
