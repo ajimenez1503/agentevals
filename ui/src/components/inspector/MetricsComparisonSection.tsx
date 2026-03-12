@@ -489,7 +489,7 @@ const scoreDisplayStyles = css`
   font-family: var(--font-mono);
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
 `;
 
 const successTextStyles = css`

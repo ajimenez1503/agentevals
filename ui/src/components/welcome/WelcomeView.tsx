@@ -77,7 +77,7 @@ const headerStyle = css`
     font-size: 3rem;
     font-weight: 700;
     margin: 0 0 16px 0;
-    background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-purple) 100%);
+    background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-purple) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -115,8 +115,8 @@ const optionCardStyle = css`
 
   &:hover {
     transform: translateY(-8px);
-    border-color: var(--accent-cyan);
-    box-shadow: 0 16px 48px rgba(0, 217, 255, 0.2);
+    border-color: var(--accent-primary);
+    box-shadow: 0 16px 48px rgba(168, 85, 247, 0.2);
     background: var(--bg-elevated);
   }
 
@@ -139,15 +139,15 @@ const iconWrapperStyle = css`
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(138, 43, 226, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(109, 40, 217, 0.1) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
   transition: all 0.3s ease;
 
   button:hover & {
     transform: scale(1.1);
-    background: linear-gradient(135deg, rgba(0, 217, 255, 0.2) 0%, rgba(138, 43, 226, 0.2) 100%);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(109, 40, 217, 0.2) 100%);
   }
 `;

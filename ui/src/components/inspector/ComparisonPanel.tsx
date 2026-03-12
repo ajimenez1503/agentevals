@@ -148,7 +148,7 @@ const panelContentStyles = css`
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-cyan);
+    background: var(--accent-primary);
   }
 `;
 

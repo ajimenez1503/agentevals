@@ -69,7 +69,7 @@ export const InvocationSummaryPanel: React.FC<InvocationSummaryPanelProps> = ({
 
               <div css={cardSectionStyles}>
                 <div css={sectionLabelStyles}>
-                  <MessageCircle size={14} css={iconStyles('var(--accent-purple)')} />
+                  <MessageCircle size={14} css={iconStyles('var(--accent-primary)')} />
                   <span>User Input</span>
                 </div>
                 <div css={previewTextStyles}>
@@ -91,7 +91,7 @@ export const InvocationSummaryPanel: React.FC<InvocationSummaryPanelProps> = ({
 
               <div css={cardSectionStyles}>
                 <div css={sectionLabelStyles}>
-                  <MessageSquare size={14} css={iconStyles('var(--accent-cyan)')} />
+                  <MessageSquare size={14} css={iconStyles('var(--accent-primary)')} />
                   <span>Response</span>
                 </div>
                 <div css={previewTextStyles}>
@@ -134,10 +134,10 @@ const countBadgeStyles = css`
   display: flex;
   align-items: center;
   padding: 4px 12px;
-  background: rgba(0, 217, 255, 0.1);
-  border: 1px solid var(--accent-cyan);
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid var(--accent-primary);
   border-radius: 12px;
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
   font-size: 0.75rem;
   font-weight: 600;
 `;
@@ -164,7 +164,7 @@ const panelContentStyles = css`
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-cyan);
+    background: var(--accent-primary);
   }
 `;
 
@@ -192,7 +192,7 @@ const emptyStateStyles = css`
 
 const invocationCardStyles = (selected: boolean) => css`
   background: var(--bg-elevated);
-  border: ${selected ? '2px' : '1px'} solid ${selected ? 'var(--accent-cyan)' : 'var(--border-default)'};
+  border: ${selected ? '2px' : '1px'} solid ${selected ? 'var(--accent-primary)' : 'var(--border-default)'};
   border-radius: 8px;
   padding: 16px;
   cursor: pointer;
@@ -200,9 +200,9 @@ const invocationCardStyles = (selected: boolean) => css`
   box-shadow: ${selected ? 'var(--glow-info)' : 'none'};
 
   &:hover {
-    border-color: var(--accent-cyan);
+    border-color: var(--accent-primary);
     transform: translateY(-2px);
-    box-shadow: ${selected ? 'var(--glow-info)' : '0 4px 16px rgba(0, 217, 255, 0.15)'};
+    box-shadow: ${selected ? 'var(--glow-info)' : '0 4px 16px rgba(168, 85, 247, 0.15)'};
   }
 `;
 

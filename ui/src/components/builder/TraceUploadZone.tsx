@@ -131,10 +131,10 @@ const dropZoneStyle = css`
   cursor: pointer;
 
   &:hover {
-    border-color: var(--accent-cyan);
+    border-color: var(--accent-primary);
     background: var(--bg-elevated);
     transform: translateY(-4px);
-    box-shadow: 0 16px 48px rgba(0, 217, 255, 0.15);
+    box-shadow: 0 16px 48px rgba(168, 85, 247, 0.15);
   }
 `;
 
@@ -167,16 +167,16 @@ const iconWrapperStyle = css`
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(0, 217, 255, 0.1) 0%, rgba(138, 43, 226, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1) 0%, rgba(109, 40, 217, 0.1) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
   transition: all 0.3s ease;
 
   label:hover & {
     transform: scale(1.1);
-    background: linear-gradient(135deg, rgba(0, 217, 255, 0.2) 0%, rgba(138, 43, 226, 0.2) 100%);
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(109, 40, 217, 0.2) 100%);
   }
 `;
 

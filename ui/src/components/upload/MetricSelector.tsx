@@ -29,7 +29,7 @@ const selectorStyle = css`
   }
 
   .category-title {
-    color: var(--accent-cyan);
+    color: var(--accent-primary);
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
@@ -84,15 +84,15 @@ const selectorStyle = css`
   }
 
   .badge-llm {
-    background-color: rgba(167, 139, 250, 0.1);
-    color: var(--accent-purple);
-    border: 1px solid rgba(167, 139, 250, 0.3);
+    background-color: rgba(168, 85, 247, 0.1);
+    color: var(--accent-primary);
+    border: 1px solid rgba(168, 85, 247, 0.3);
   }
 
   .badge-gcp {
-    background-color: rgba(59, 130, 246, 0.1);
+    background-color: rgba(124, 58, 237, 0.1);
     color: #60A5FA;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    border: 1px solid rgba(124, 58, 237, 0.3);
   }
 
   .badge-rubrics {
@@ -120,8 +120,8 @@ const selectorStyle = css`
   }
 
   .ant-checkbox-checked .ant-checkbox-inner {
-    background-color: var(--accent-cyan);
-    border-color: var(--accent-cyan);
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
   }
 `;
 

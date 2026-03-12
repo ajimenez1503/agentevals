@@ -69,8 +69,8 @@ export function AnnotationDetailPanel({ item, onSave, onClose }: AnnotationDetai
           marginBottom: '20px',
         }}>
           <span style={{
-            fontSize: '11px', fontWeight: 600, color: '#8b5cf6',
-            background: 'rgba(139, 92, 246, 0.1)', padding: '4px 10px',
+            fontSize: '11px', fontWeight: 600, color: '#A855F7',
+            background: 'rgba(168, 85, 247, 0.1)', padding: '4px 10px',
             borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px',
           }}>
             {item.model || 'Unknown model'}
@@ -127,7 +127,7 @@ export function AnnotationDetailPanel({ item, onSave, onClose }: AnnotationDetai
                 }}
               >
                 <div style={{
-                  fontSize: '11px', fontWeight: 700, color: '#3b82f6',
+                  fontSize: '11px', fontWeight: 700, color: '#7C3AED',
                   marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px',
                 }}>
                   Turn {idx + 1}
@@ -135,7 +135,7 @@ export function AnnotationDetailPanel({ item, onSave, onClose }: AnnotationDetai
 
                 <div style={{ marginBottom: '12px' }}>
                   <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>User</div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: '1.6', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '6px', borderLeft: '3px solid #3b82f6' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: '1.6', padding: '8px 12px', background: 'var(--bg-surface)', borderRadius: '6px', borderLeft: '3px solid #7C3AED' }}>
                     {inv.userText || '(no text)'}
                   </div>
                 </div>
@@ -146,8 +146,8 @@ export function AnnotationDetailPanel({ item, onSave, onClose }: AnnotationDetai
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       {inv.toolCalls.map((tc, i) => (
                         <div key={i} style={{
-                          fontSize: '12px', color: '#8b5cf6', fontFamily: 'monospace',
-                          background: 'rgba(139, 92, 246, 0.08)', padding: '6px 10px', borderRadius: '6px', fontWeight: 500,
+                          fontSize: '12px', color: '#A855F7', fontFamily: 'monospace',
+                          background: 'rgba(168, 85, 247, 0.08)', padding: '6px 10px', borderRadius: '6px', fontWeight: 500,
                         }}>
                           {tc.name}({Object.keys(tc.args || {}).length > 0
                             ? Object.keys(tc.args).map(k => `${k}=${JSON.stringify(tc.args[k])}`).join(', ')
@@ -178,12 +178,12 @@ export function AnnotationDetailPanel({ item, onSave, onClose }: AnnotationDetai
                 </div>
                 <div style={{
                   fontSize: '13px',
-                  color: el.type === 'tool_call' ? '#8b5cf6' : 'var(--text-primary)',
+                  color: el.type === 'tool_call' ? '#A855F7' : 'var(--text-primary)',
                   lineHeight: '1.6',
                   padding: '8px 12px',
-                  background: el.type === 'tool_call' ? 'rgba(139, 92, 246, 0.08)' : 'var(--bg-surface)',
+                  background: el.type === 'tool_call' ? 'rgba(168, 85, 247, 0.08)' : 'var(--bg-surface)',
                   borderRadius: '6px',
-                  borderLeft: `3px solid ${el.type === 'user_input' ? '#3b82f6' : el.type === 'tool_call' ? '#8b5cf6' : '#10b981'}`,
+                  borderLeft: `3px solid ${el.type === 'user_input' ? '#7C3AED' : el.type === 'tool_call' ? '#A855F7' : '#10b981'}`,
                   fontFamily: el.type === 'tool_call' ? 'monospace' : 'inherit',
                   fontWeight: el.type === 'tool_call' ? 500 : 400,
                 }}>
@@ -284,14 +284,14 @@ export function AnnotationDetailPanel({ item, onSave, onClose }: AnnotationDetai
             style={{
               padding: '10px 24px',
               borderRadius: '8px',
-              background: firstPass ? 'var(--accent-cyan)' : 'var(--bg-elevated)',
+              background: firstPass ? 'var(--accent-primary)' : 'var(--bg-elevated)',
               border: 'none',
-              color: firstPass ? '#000' : 'var(--text-tertiary)',
+              color: firstPass ? '#fff' : 'var(--text-tertiary)',
               fontSize: '13px',
               fontWeight: 600,
               cursor: firstPass ? 'pointer' : 'not-allowed',
               transition: 'all 0.2s',
-              boxShadow: firstPass ? '0 0 16px rgba(0, 217, 255, 0.25)' : 'none',
+              boxShadow: firstPass ? '0 0 16px rgba(168, 85, 247, 0.25)' : 'none',
             }}
           >
             Save Annotation

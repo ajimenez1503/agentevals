@@ -23,13 +23,13 @@ const dropZoneStyle = css`
     padding: 16px !important;
 
     &:hover {
-      border-color: var(--accent-cyan);
+      border-color: var(--accent-primary);
       background-color: var(--bg-elevated);
     }
   }
 
   .ant-upload-drag-icon {
-    color: var(--accent-cyan);
+    color: var(--accent-primary);
     margin-bottom: 8px !important;
   }
 

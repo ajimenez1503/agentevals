@@ -28,8 +28,8 @@ const cardStyle = css`
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 32px rgba(0, 217, 255, 0.15);
-    border-color: var(--accent-cyan);
+    box-shadow: 0 8px 32px rgba(168, 85, 247, 0.15);
+    border-color: var(--accent-primary);
   }
 
   .card-header {
@@ -46,7 +46,7 @@ const cardStyle = css`
     cursor: pointer;
 
     &:hover {
-      color: var(--accent-cyan);
+      color: var(--accent-primary);
     }
   }
 
@@ -115,7 +115,7 @@ const cardStyle = css`
     display: flex;
     align-items: center;
     gap: 6px;
-    color: var(--accent-cyan);
+    color: var(--accent-primary);
     font-size: 14px;
     font-weight: 500;
   }
