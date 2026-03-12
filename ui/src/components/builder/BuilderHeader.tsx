@@ -32,11 +32,11 @@ export const BuilderHeader: React.FC<BuilderHeaderProps> = ({
             css={css`
               display: flex; align-items: center; gap: 8px;
               padding: 8px 14px; border-radius: 6px;
-              border: 1px solid rgba(139, 92, 246, 0.4);
-              background: transparent; color: #8b5cf6;
+              border: 1px solid rgba(168, 85, 247, 0.4);
+              background: transparent; color: #A855F7;
               font-size: 0.875rem; font-weight: 500; cursor: pointer;
               transition: all 0.2s ease;
-              &:hover { background: rgba(139, 92, 246, 0.08); }
+              &:hover { background: rgba(168, 85, 247, 0.08); }
             `}
           >
             Annotation Queues

@@ -99,7 +99,7 @@ export function getScoreColor(score: number, threshold: number = 0.8): string {
  */
 export function getOperationColor(operationName: string): string {
   if (operationName.includes('invoke_agent')) {
-    return 'var(--accent-cyan)';
+    return 'var(--accent-primary)';
   } else if (operationName.includes('call_llm')) {
     return 'var(--accent-purple)';
   } else if (operationName.includes('execute_tool')) {
@@ -182,7 +182,7 @@ export function getExtractionTypeColor(type: string): string {
     case 'tool_response':
       return 'var(--accent-orange)';
     case 'final_response':
-      return 'var(--accent-cyan)';
+      return 'var(--accent-primary)';
     default:
       return 'var(--text-secondary)';
   }

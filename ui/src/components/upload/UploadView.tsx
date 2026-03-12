@@ -40,8 +40,8 @@ const uploadViewStyle = css`
     gap: 8px;
 
     &:hover {
-      border-color: var(--accent-cyan);
-      color: var(--accent-cyan);
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
       background: var(--bg-elevated);
     }
   }
@@ -127,17 +127,17 @@ const uploadViewStyle = css`
     display: flex;
     align-items: center;
     gap: 10px;
-    background-color: var(--accent-cyan) !important;
-    border-color: var(--accent-cyan) !important;
+    background-color: var(--accent-primary) !important;
+    border-color: var(--accent-primary) !important;
     color: #000 !important;
-    box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
     transition: all 0.3s ease;
 
     &:hover:not(:disabled) {
       transform: translateY(-2px);
-      box-shadow: 0 0 30px rgba(0, 217, 255, 0.5);
-      background-color: var(--accent-cyan) !important;
-      border-color: var(--accent-cyan) !important;
+      box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
+      background-color: var(--accent-primary) !important;
+      border-color: var(--accent-primary) !important;
     }
 
     &:disabled {
@@ -154,7 +154,7 @@ const uploadViewStyle = css`
     width: 12px;
     height: 12px;
     border: 2px solid var(--bg-elevated);
-    border-top-color: var(--accent-cyan);
+    border-top-color: var(--accent-primary);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
@@ -198,7 +198,7 @@ export const UploadView: React.FC = () => {
               <button
                 className="nav-button"
                 onClick={() => actions.setCurrentView('annotation-queue')}
-                style={{ borderColor: 'rgba(139, 92, 246, 0.4)', color: '#8b5cf6' }}
+                style={{ borderColor: 'rgba(168, 85, 247, 0.4)', color: '#A855F7' }}
               >
                 Annotation Queues
               </button>
@@ -250,7 +250,7 @@ export const UploadView: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    color: 'var(--accent-cyan)',
+                    color: 'var(--accent-primary)',
                     fontSize: '11px'
                   }}>
                     <div className="spinner" />
@@ -353,7 +353,7 @@ export const UploadView: React.FC = () => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      color: 'var(--accent-cyan)',
+                      color: 'var(--accent-primary)',
                       fontSize: '11px'
                     }}>
                       <div className="spinner" />

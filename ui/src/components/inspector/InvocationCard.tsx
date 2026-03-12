@@ -93,7 +93,7 @@ export const InvocationCard: React.FC<InvocationCardProps> = ({
         <DataSection
           title="Final Response"
           icon={<MessageSquare size={16} />}
-          color="var(--accent-cyan)"
+          color="var(--accent-primary)"
           dataPath={responsePath}
           isHighlighted={highlightedPaths.has(responsePath)}
           onClick={onSelectData}
@@ -116,12 +116,12 @@ const cardStyles = (isSelected: boolean) => css`
   transition: all 0.2s ease;
 
   ${isSelected && `
-    border-color: var(--accent-cyan);
-    box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
   `}
 
   &:hover {
-    border-color: var(--accent-cyan);
+    border-color: var(--accent-primary);
   }
 `;
 
@@ -146,7 +146,7 @@ const headerLeftStyles = css`
 const invocationNumberStyles = css`
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--accent-cyan);
+  color: var(--accent-primary);
   letter-spacing: 0.3px;
 `;
 

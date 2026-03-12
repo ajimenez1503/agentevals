@@ -140,7 +140,7 @@ const brandStyle = css`
   margin-bottom: 12px;
   font-size: 1.125rem;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-purple) 100%);
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-purple) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -210,18 +210,18 @@ const bugReportButtonStyle = css`
   &:hover {
     color: var(--text-secondary);
     background: var(--bg-elevated);
-    border-color: var(--accent-cyan);
+    border-color: var(--accent-primary);
   }
 `;
 
 const activeItemStyle = css`
-  color: var(--accent-cyan);
-  background: rgba(0, 217, 255, 0.06);
-  border-left-color: var(--accent-cyan);
+  color: var(--accent-primary);
+  background: rgba(168, 85, 247, 0.06);
+  border-left-color: var(--accent-primary);
   font-weight: 600;
 
   &:hover {
-    color: var(--accent-cyan);
-    background: rgba(0, 217, 255, 0.1);
+    color: var(--accent-primary);
+    background: rgba(168, 85, 247, 0.1);
   }
 `;

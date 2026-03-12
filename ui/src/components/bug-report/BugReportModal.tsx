@@ -277,7 +277,7 @@ const textareaStyle = css`
   outline: none;
 
   &:focus {
-    border-color: var(--accent-cyan);
+    border-color: var(--accent-primary);
   }
 
   &::placeholder {
@@ -340,7 +340,7 @@ const generateButtonStyle = css`
   padding: 8px 16px;
   border-radius: 8px;
   border: none;
-  background: var(--accent-cyan);
+  background: var(--accent-primary);
   color: #000;
   font-size: 0.8rem;
   font-weight: 600;

@@ -25,7 +25,7 @@ const statsStyle = css`
   .stat-value {
     font-size: 2.5rem;
     font-weight: 700;
-    color: var(--accent-cyan);
+    color: var(--accent-primary);
     margin-bottom: 8px;
     font-family: var(--font-mono);
   }

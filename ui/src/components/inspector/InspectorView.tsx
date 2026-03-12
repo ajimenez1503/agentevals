@@ -281,7 +281,7 @@ const loadingSpinnerStyles = css`
   width: 40px;
   height: 40px;
   border: 3px solid var(--border-default);
-  border-top-color: var(--accent-cyan);
+  border-top-color: var(--accent-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 
@@ -320,7 +320,7 @@ const errorMessageStyles = css`
 
 const backButtonStyles = css`
   padding: 12px 24px;
-  background: var(--accent-cyan);
+  background: var(--accent-primary);
   border: none;
   border-radius: 6px;
   color: var(--bg-primary);
@@ -332,6 +332,6 @@ const backButtonStyles = css`
 
   &:hover {
     background: var(--accent-purple);
-    box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
   }
 `;

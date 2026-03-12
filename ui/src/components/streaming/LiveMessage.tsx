@@ -10,7 +10,7 @@ export function UserMessage({ text }: UserMessageProps) {
     }}>
       <div style={{
         fontSize: '10px',
-        color: '#3b82f6',
+        color: '#7C3AED',
         marginBottom: '6px',
         fontWeight: 700,
         textTransform: 'uppercase' as const,
@@ -47,7 +47,7 @@ export function ToolCallMessage({ name, args }: ToolCallMessageProps) {
     }}>
       <div style={{
         fontSize: '12px',
-        color: '#8b5cf6',
+        color: '#A855F7',
         fontFamily: 'monospace',
         fontWeight: 500,
       }}>

@@ -401,9 +401,9 @@ export function LiveStreamingView() {
         {allSessions.length > 0 && (
           <div style={{
             padding: '12px 16px',
-            background: 'rgba(59, 130, 246, 0.05)',
+            background: 'rgba(124, 58, 237, 0.05)',
             borderRadius: '8px',
-            border: '1px solid rgba(59, 130, 246, 0.2)',
+            border: '1px solid rgba(124, 58, 237, 0.2)',
             display: 'flex',
             gap: '16px',
             alignItems: 'center',
@@ -446,16 +446,16 @@ export function LiveStreamingView() {
       {totalQueuedSessions > 0 && (
         <div style={{
           padding: '16px 20px',
-          background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%)',
+          background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.08) 0%, rgba(124, 58, 237, 0.08) 100%)',
           borderRadius: '12px',
           marginBottom: '16px',
-          border: '2px solid rgba(139, 92, 246, 0.2)',
+          border: '2px solid rgba(168, 85, 247, 0.2)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
           <div>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: '#8b5cf6', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#A855F7', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Annotation Queues
             </div>
             <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
@@ -466,9 +466,9 @@ export function LiveStreamingView() {
             onClick={() => actions.setCurrentView('annotation-queue')}
             style={{
               padding: '8px 20px', borderRadius: '8px',
-              background: 'rgba(139, 92, 246, 0.15)',
-              border: '1.5px solid rgba(139, 92, 246, 0.4)',
-              color: '#8b5cf6', fontSize: '13px', fontWeight: 600,
+              background: 'rgba(168, 85, 247, 0.15)',
+              border: '1.5px solid rgba(168, 85, 247, 0.4)',
+              color: '#A855F7', fontSize: '13px', fontWeight: 600,
               cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
             }}
           >
@@ -480,10 +480,10 @@ export function LiveStreamingView() {
       {selectedGoldenId && (
         <div style={{
           padding: '24px',
-          background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+          background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%)',
           borderRadius: '12px',
           marginBottom: '24px',
-          border: '2px solid rgba(59, 130, 246, 0.2)',
+          border: '2px solid rgba(124, 58, 237, 0.2)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -492,7 +492,7 @@ export function LiveStreamingView() {
             <div style={{
               fontSize: '12px',
               fontWeight: 700,
-              color: '#3b82f6',
+              color: '#7C3AED',
               marginBottom: '8px',
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
@@ -526,15 +526,15 @@ export function LiveStreamingView() {
                 height: '44px',
                 padding: '0 32px',
                 borderRadius: '8px',
-                background: isPreparingEvaluation ? 'var(--bg-surface)' : 'var(--accent-cyan)',
+                background: isPreparingEvaluation ? 'var(--bg-surface)' : 'var(--accent-primary)',
                 border: isPreparingEvaluation ? '1px solid var(--border-default)' : 'none',
-                color: isPreparingEvaluation ? 'var(--text-secondary)' : '#000',
+                color: isPreparingEvaluation ? 'var(--text-secondary)' : '#fff',
                 fontSize: '15px',
                 fontWeight: 600,
                 cursor: isPreparingEvaluation ? 'not-allowed' : 'pointer',
                 opacity: isPreparingEvaluation ? 0.4 : 1,
                 transition: 'all 0.3s ease',
-                boxShadow: isPreparingEvaluation ? 'none' : '0 0 20px rgba(0, 217, 255, 0.3)',
+                boxShadow: isPreparingEvaluation ? 'none' : '0 0 20px rgba(168, 85, 247, 0.3)',
                 whiteSpace: 'nowrap',
                 display: 'flex',
                 alignItems: 'center',
@@ -543,13 +543,13 @@ export function LiveStreamingView() {
               onMouseEnter={(e) => {
                 if (!isPreparingEvaluation) {
                   e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 0 30px rgba(0, 217, 255, 0.5)';
+                  e.currentTarget.style.boxShadow = '0 0 30px rgba(168, 85, 247, 0.5)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isPreparingEvaluation) {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 217, 255, 0.3)';
+                  e.currentTarget.style.boxShadow = '0 0 20px rgba(168, 85, 247, 0.3)';
                 }
               }}
             >

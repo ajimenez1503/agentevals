@@ -97,10 +97,10 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
       style={{
         background: 'var(--card-bg)',
         borderRadius: '12px',
-        border: isSelected ? '2px solid #3b82f6' : '1px solid var(--border)',
+        border: isSelected ? '2px solid #7C3AED' : '1px solid var(--border)',
         padding: '20px',
         transition: 'all 0.2s',
-        boxShadow: isSelected ? '0 4px 12px rgba(59, 130, 246, 0.15)' : 'none',
+        boxShadow: isSelected ? '0 4px 12px rgba(124, 58, 237, 0.15)' : 'none',
       }}
     >
       <div style={{
@@ -114,8 +114,8 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
             <span style={{
               fontSize: '11px',
               fontWeight: 600,
-              color: '#8b5cf6',
-              background: 'rgba(139, 92, 246, 0.1)',
+              color: '#A855F7',
+              background: 'rgba(168, 85, 247, 0.1)',
               padding: '4px 10px',
               borderRadius: '6px',
               textTransform: 'uppercase',
@@ -154,9 +154,9 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
               <span key={name} style={{
                 fontSize: '11px',
                 fontWeight: 600,
-                color: '#8b5cf6',
-                background: 'rgba(139, 92, 246, 0.12)',
-                border: '1px solid rgba(139, 92, 246, 0.3)',
+                color: '#A855F7',
+                background: 'rgba(168, 85, 247, 0.12)',
+                border: '1px solid rgba(168, 85, 247, 0.3)',
                 padding: '3px 8px',
                 borderRadius: '6px',
               }}>
@@ -194,9 +194,9 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
                 }}
                 style={{
                   padding: '8px 14px', borderRadius: '8px',
-                  background: showQueuePicker ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-                  border: '1.5px solid rgba(139, 92, 246, 0.4)',
-                  color: '#8b5cf6', fontSize: '13px', fontWeight: 600,
+                  background: showQueuePicker ? 'rgba(168, 85, 247, 0.15)' : 'transparent',
+                  border: '1.5px solid rgba(168, 85, 247, 0.4)',
+                  color: '#A855F7', fontSize: '13px', fontWeight: 600,
                   cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
                 }}
               >
@@ -273,8 +273,8 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
                           }}
                           style={{
                             flex: 1, padding: '6px', borderRadius: '6px',
-                            background: 'var(--accent-cyan)', border: 'none',
-                            color: '#000', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                            background: 'var(--accent-primary)', border: 'none',
+                            color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
                           }}
                         >
                           Create
@@ -297,10 +297,10 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
                       style={{
                         display: 'block', width: '100%', padding: '8px 10px',
                         borderRadius: '6px', background: 'transparent', border: 'none',
-                        color: '#8b5cf6', fontSize: '13px', fontWeight: 600,
+                        color: '#A855F7', fontSize: '13px', fontWeight: 600,
                         cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s',
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(139, 92, 246, 0.08)')}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168, 85, 247, 0.08)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
                       + New queue
@@ -341,7 +341,7 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
             style={{
               padding: '8px 16px',
               borderRadius: '8px',
-              background: isSelected ? '#3b82f6' : 'transparent',
+              background: isSelected ? '#7C3AED' : 'transparent',
               border: isSelected ? 'none' : '1.5px solid var(--border)',
               color: isSelected ? 'white' : 'var(--text-primary)',
               fontSize: '13px',
@@ -386,7 +386,7 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
             style={{
               padding: '8px 12px',
               borderRadius: '8px',
-              background: expanded ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+              background: expanded ? 'rgba(124, 58, 237, 0.1)' : 'transparent',
               border: '1.5px solid var(--border)',
               color: 'var(--text-primary)',
               fontSize: '13px',
@@ -444,13 +444,13 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
                 padding: '16px',
                 background: 'var(--bg-primary)',
                 borderRadius: '10px',
-                borderLeft: '3px solid #3b82f6',
+                borderLeft: '3px solid #7C3AED',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <span style={{
                   fontSize: '11px',
-                  color: '#3b82f6',
+                  color: '#7C3AED',
                   fontWeight: 700,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
@@ -526,9 +526,9 @@ export function SessionCard({ session, isSelected, onSelect, onRemove, evaluatio
                         key={i}
                         style={{
                           fontSize: '12px',
-                          color: '#3b82f6',
+                          color: '#7C3AED',
                           fontFamily: 'monospace',
-                          background: 'rgba(59, 130, 246, 0.08)',
+                          background: 'rgba(124, 58, 237, 0.08)',
                           padding: '6px 10px',
                           borderRadius: '6px',
                           fontWeight: 500,

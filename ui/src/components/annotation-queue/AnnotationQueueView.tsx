@@ -170,8 +170,8 @@ export function AnnotationQueueView() {
                 onClick={handleCreateQueue}
                 style={{
                   padding: '7px 14px', borderRadius: '8px',
-                  background: 'var(--accent-cyan)', border: 'none',
-                  color: '#000', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                  background: 'var(--accent-primary)', border: 'none',
+                  color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
                 }}
               >
                 Create
@@ -204,16 +204,16 @@ export function AnnotationQueueView() {
         {selectedGoldenId && (
           <div style={{
             padding: '20px 24px',
-            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)',
+            background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%)',
             borderRadius: '12px',
             marginBottom: '20px',
-            border: '2px solid rgba(59, 130, 246, 0.2)',
+            border: '2px solid rgba(124, 58, 237, 0.2)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
           }}>
             <div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#3b82f6', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#7C3AED', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 {completedItems.length > 1 ? 'Golden Run Selected' : 'EvalSet Selected'}
               </div>
               <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
@@ -232,14 +232,14 @@ export function AnnotationQueueView() {
                 disabled={isPreparingEvaluation}
                 style={{
                   height: '44px', padding: '0 32px', borderRadius: '8px',
-                  background: isPreparingEvaluation ? 'var(--bg-surface)' : 'var(--accent-cyan)',
+                  background: isPreparingEvaluation ? 'var(--bg-surface)' : 'var(--accent-primary)',
                   border: isPreparingEvaluation ? '1px solid var(--border-default)' : 'none',
-                  color: isPreparingEvaluation ? 'var(--text-secondary)' : '#000',
+                  color: isPreparingEvaluation ? 'var(--text-secondary)' : '#fff',
                   fontSize: '15px', fontWeight: 600,
                   cursor: isPreparingEvaluation ? 'not-allowed' : 'pointer',
                   opacity: isPreparingEvaluation ? 0.4 : 1,
                   transition: 'all 0.3s ease',
-                  boxShadow: isPreparingEvaluation ? 'none' : '0 0 20px rgba(0, 217, 255, 0.3)',
+                  boxShadow: isPreparingEvaluation ? 'none' : '0 0 20px rgba(168, 85, 247, 0.3)',
                   whiteSpace: 'nowrap',
                 }}
               >
@@ -265,8 +265,8 @@ export function AnnotationQueueView() {
             <button
               onClick={() => setShowNewQueueInput(true)}
               style={{
-                padding: '10px 24px', borderRadius: '8px', background: 'var(--accent-cyan)',
-                border: 'none', color: '#000', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                padding: '10px 24px', borderRadius: '8px', background: 'var(--accent-primary)',
+                border: 'none', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
               }}
             >
               Create a queue
@@ -299,8 +299,8 @@ export function AnnotationQueueView() {
               <div>
                 <div style={{
                   padding: '10px 14px', marginBottom: '16px',
-                  background: 'rgba(59, 130, 246, 0.05)',
-                  borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)',
+                  background: 'rgba(124, 58, 237, 0.05)',
+                  borderRadius: '8px', border: '1px solid rgba(124, 58, 237, 0.2)',
                   display: 'flex', gap: '16px', alignItems: 'center', justifyContent: 'space-between',
                 }}>
                   <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600 }}>

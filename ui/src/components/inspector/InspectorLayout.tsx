@@ -128,12 +128,12 @@ const dividerStyles = css`
   }
 
   &:hover {
-    background: var(--accent-cyan);
+    background: var(--accent-primary);
     width: 3px;
   }
 
   &:active {
-    background: var(--accent-cyan);
+    background: var(--accent-primary);
     width: 3px;
   }
 `;

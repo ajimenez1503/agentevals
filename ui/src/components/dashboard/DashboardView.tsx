@@ -79,7 +79,7 @@ const dashboardStyle = css`
   .progress-banner {
     padding: 16px;
     background: var(--bg-elevated);
-    border: 1px solid var(--accent-cyan);
+    border: 1px solid var(--accent-primary);
     border-radius: 8px;
     margin-bottom: 24px;
     display: flex;
@@ -140,9 +140,9 @@ export const DashboardView: React.FC = () => {
               style={{
                 padding: '8px 16px',
                 borderRadius: '6px',
-                border: '1px solid rgba(139, 92, 246, 0.4)',
+                border: '1px solid rgba(168, 85, 247, 0.4)',
                 background: 'var(--bg-surface)',
-                color: '#8b5cf6',
+                color: '#A855F7',
                 fontSize: '0.875rem',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
@@ -151,7 +151,7 @@ export const DashboardView: React.FC = () => {
                 gap: '8px',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(139, 92, 246, 0.08)';
+                e.currentTarget.style.background = 'rgba(168, 85, 247, 0.08)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'var(--bg-surface)';
@@ -184,7 +184,7 @@ export const DashboardView: React.FC = () => {
 
           {state.isEvaluating && (
             <div className="progress-banner">
-              <Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent-cyan)' }} />
+              <Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent-primary)' }} />
               <span className="progress-text">
                 {state.progressMessage || 'Evaluating traces...'}
               </span>
