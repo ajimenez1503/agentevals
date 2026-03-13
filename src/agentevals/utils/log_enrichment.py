@@ -5,6 +5,12 @@ from __future__ import annotations
 import json
 import logging
 
+from ..trace_attrs import (
+    OTEL_GENAI_AGENT_NAME,
+    OTEL_GENAI_INPUT_MESSAGES,
+    OTEL_GENAI_OUTPUT_MESSAGES,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,19 +115,19 @@ def enrich_spans_with_logs(
 
         if input_messages:
             attrs.append({
-                "key": "gen_ai.input.messages",
+                "key": OTEL_GENAI_INPUT_MESSAGES,
                 "value": {"stringValue": json.dumps(input_messages)}
             })
 
         if output_messages:
             attrs.append({
-                "key": "gen_ai.output.messages",
+                "key": OTEL_GENAI_OUTPUT_MESSAGES,
                 "value": {"stringValue": json.dumps(output_messages)}
             })
 
         if session_id:
             attrs.append({
-                "key": "gen_ai.agent.name",
+                "key": OTEL_GENAI_AGENT_NAME,
                 "value": {"stringValue": session_id}
             })
 

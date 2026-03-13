@@ -147,6 +147,41 @@ samples/              # Example traces and eval sets
 docs/                 # Documentation
 ```
 
+## Trace Processing Architecture
+
+agentevals converts OTel traces from agent frameworks into a common `Invocation` format for evaluation. If you're adding support for a new framework or changing how we extract data from spans, this section will help you find your way around.
+
+### Key Modules
+
+| Module | What it does |
+|--------|--------------|
+| `trace_attrs.py` | Single source of truth for OTel attribute key constants (`OTEL_GENAI_*` for standard semconv, `ADK_*` for Google ADK) |
+| `extraction.py` | Shared extraction functions, span classifiers, and the `TraceFormatExtractor` protocol with `AdkExtractor` / `GenAIExtractor` |
+| `converter.py` | Batch conversion orchestration, turns ADK traces into `Invocation` objects |
+| `genai_converter.py` | Batch conversion for GenAI semconv traces (single-turn and multi-turn) |
+| `streaming/incremental_processor.py` | Real-time span processing for the live UI, uses the same shared extraction functions |
+| `utils/log_enrichment.py` | Reconstructs `gen_ai.input/output.messages` from OTel log records into span attributes |
+
+### Adding a new attribute constant
+
+Add it to `trace_attrs.py` and import from there. Don't use hardcoded attribute key strings elsewhere.
+
+### Adding or modifying extraction logic
+
+The extraction functions in `extraction.py` accept flat `dict[str, Any]` attribute maps. This means they work with both `Span`-based batch converters (via `span.tags`) and the raw OTLP dict incremental processor. When extracting data, check ADK-specific attributes first (they contain richer data), then fall back to GenAI semconv.
+
+### Supporting a new trace format
+
+1. Add a new `TraceFormatExtractor` implementation in `extraction.py` with `detect()`, `find_invocation_spans()`, `find_llm_spans_in()`, `find_tool_spans_in()`, and `classify_span()`
+2. Register it in the `_EXTRACTORS` list. Order matters here: more specific formats should come first so they get detected before the generic GenAI fallback
+3. If the format introduces new attribute keys, add them to `trace_attrs.py`
+4. If you need conversion logic that the shared extraction functions don't cover, add a dedicated converter module (see `genai_converter.py` for an example)
+5. Add tests to `tests/test_extraction.py` for detection and span classification
+
+### Adding an SDK example
+
+Each example directory under `examples/` is self-contained with its own `requirements.txt`. The example needs to actually produce OTel spans. For OpenAI-based agents this means including `opentelemetry-instrumentation-openai-v2` in the requirements. Make sure all framework-specific OTel dependencies are listed in the example's `requirements.txt`.
+
 ## Getting Help
 
 - Open an [issue](https://github.com/agentevals-dev/agentevals/issues) for bugs or questions

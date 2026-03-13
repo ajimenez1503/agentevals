@@ -19,23 +19,22 @@ from typing import Any
 from google.adk.evaluation.eval_case import IntermediateData, Invocation
 from google.genai import types as genai_types
 
+from .extraction import get_extractor
 from .loader.base import Span, Trace
+from .trace_attrs import (
+    ADK_INVOCATION_ID,
+    ADK_LLM_REQUEST,
+    ADK_LLM_RESPONSE,
+    ADK_SCOPE_VALUE,
+    ADK_TOOL_CALL_ARGS,
+    ADK_TOOL_RESPONSE,
+    OTEL_GENAI_AGENT_NAME,
+    OTEL_GENAI_TOOL_CALL_ID,
+    OTEL_GENAI_TOOL_NAME,
+    OTEL_SCOPE,
+)
 
 logger = logging.getLogger(__name__)
-
-FORMAT_DETECTION_SPAN_LIMIT = 10
-
-# Tag keys used by the ADK OTel instrumentation (gcp.vertex.agent scope).
-_TAG_SCOPE = "otel.scope.name"
-_ADK_SCOPE = "gcp.vertex.agent"
-_TAG_OP = "gen_ai.operation.name"
-_TAG_AGENT_NAME = "gen_ai.agent.name"
-_TAG_LLM_REQUEST = "gcp.vertex.agent.llm_request"
-_TAG_LLM_RESPONSE = "gcp.vertex.agent.llm_response"
-_TAG_TOOL_NAME = "gen_ai.tool.name"
-_TAG_TOOL_CALL_ID = "gen_ai.tool.call.id"
-_TAG_TOOL_CALL_ARGS = "gcp.vertex.agent.tool_call_args"
-_TAG_TOOL_RESPONSE = "gcp.vertex.agent.tool_response"
 
 
 @dataclass
@@ -70,52 +69,8 @@ def convert_trace(trace: Trace, format: str | None = None) -> ConversionResult:
 
 
 def _detect_trace_format(trace: Trace) -> str:
-    """Detect trace format by inspecting span attributes.
-
-    Checks spans for format indicators:
-    - ADK: otel.scope.name == "gcp.vertex.agent"
-    - GenAI: gen_ai.request.model or gen_ai.input.messages attributes
-
-    First checks a limited number of spans for performance, then falls back
-    to checking all spans if inconclusive.
-
-    Returns:
-        "adk" or "genai"
-    """
-    def check_spans(spans: list[Span]) -> str | None:
-        has_genai = False
-        for span in spans:
-            if span.get_tag(_TAG_SCOPE) == _ADK_SCOPE:
-                return "adk"
-            if not has_genai and (
-                span.get_tag("gen_ai.request.model") or span.get_tag("gen_ai.input.messages")
-            ):
-                has_genai = True
-        return "genai" if has_genai else None
-
-    initial_check = check_spans(trace.all_spans[:FORMAT_DETECTION_SPAN_LIMIT])
-    if initial_check:
-        logger.debug(
-            f"Trace {trace.trace_id}: detected {initial_check} format "
-            f"in first {FORMAT_DETECTION_SPAN_LIMIT} spans"
-        )
-        return initial_check
-
-    if len(trace.all_spans) > FORMAT_DETECTION_SPAN_LIMIT:
-        logger.debug(
-            f"Trace {trace.trace_id}: checking all {len(trace.all_spans)} spans "
-            f"for format detection"
-        )
-        full_check = check_spans(trace.all_spans)
-        if full_check:
-            logger.debug(f"Trace {trace.trace_id}: detected {full_check} format in full scan")
-            return full_check
-
-    logger.warning(
-        f"Trace {trace.trace_id}: no format indicators found in {len(trace.all_spans)} spans, "
-        f"defaulting to ADK format"
-    )
-    return "adk"
+    """Detect trace format by delegating to the extractor registry."""
+    return get_extractor(trace).format_name()
 
 
 def _convert_adk_trace(trace: Trace) -> ConversionResult:
@@ -149,7 +104,7 @@ def _find_adk_spans(trace: Trace, operation: str) -> list[Span]:
     """Find spans with ``otel.scope.name == "gcp.vertex.agent"`` matching an operation prefix."""
     matches = []
     for span in trace.all_spans:
-        if span.get_tag(_TAG_SCOPE) != _ADK_SCOPE:
+        if span.get_tag(OTEL_SCOPE) != ADK_SCOPE_VALUE:
             continue
         # operationName is e.g. "invoke_agent helm_agent" or "call_llm"
         if span.operation_name.startswith(operation):
@@ -159,7 +114,7 @@ def _find_adk_spans(trace: Trace, operation: str) -> list[Span]:
 
 
 def _convert_invoke_span(invoke_span: Span) -> Invocation:
-    agent_name = invoke_span.get_tag(_TAG_AGENT_NAME, "unknown")
+    agent_name = invoke_span.get_tag(OTEL_GENAI_AGENT_NAME, "unknown")
 
     call_llm_spans = _find_children_by_op(invoke_span, "call_llm")
     if not call_llm_spans:
@@ -178,9 +133,7 @@ def _convert_invoke_span(invoke_span: Span) -> Invocation:
         tool_responses=tool_responses,
     )
 
-    invocation_id = invoke_span.get_tag(
-        "gcp.vertex.agent.invocation_id", invoke_span.span_id
-    )
+    invocation_id = invoke_span.get_tag(ADK_INVOCATION_ID, invoke_span.span_id)
 
     return Invocation(
         invocation_id=invocation_id,
@@ -207,7 +160,7 @@ def _walk(span: Span, op_prefix: str, acc: list[Span]) -> None:
 
 def _extract_user_content(first_call_llm: Span) -> genai_types.Content:
     """Extract user input from the first call_llm span's llm_request tag."""
-    llm_request_raw = first_call_llm.get_tag(_TAG_LLM_REQUEST, "{}")
+    llm_request_raw = first_call_llm.get_tag(ADK_LLM_REQUEST, "{}")
     llm_request = _parse_json_tag(llm_request_raw, "llm_request")
     contents = llm_request.get("contents", [])
 
@@ -234,7 +187,7 @@ def _extract_user_content(first_call_llm: Span) -> genai_types.Content:
 
 def _extract_final_response(last_call_llm: Span) -> genai_types.Content:
     """Extract final text response from the last call_llm span's llm_response tag."""
-    llm_response_raw = last_call_llm.get_tag(_TAG_LLM_RESPONSE, "{}")
+    llm_response_raw = last_call_llm.get_tag(ADK_LLM_RESPONSE, "{}")
     llm_response = _parse_json_tag(llm_response_raw, "llm_response")
 
     content_dict = llm_response.get("content", {})
@@ -293,8 +246,8 @@ def _extract_tool_trajectory(
 def _extract_from_tool_span(
     tool_span: Span,
 ) -> tuple[genai_types.FunctionCall | None, genai_types.FunctionResponse | None]:
-    tool_name = tool_span.get_tag(_TAG_TOOL_NAME)
-    tool_call_id = tool_span.get_tag(_TAG_TOOL_CALL_ID)
+    tool_name = tool_span.get_tag(OTEL_GENAI_TOOL_NAME)
+    tool_call_id = tool_span.get_tag(OTEL_GENAI_TOOL_CALL_ID)
 
     if not tool_name:
         # Fallback: parse tool name from operationName "execute_tool <name>"
@@ -307,7 +260,7 @@ def _extract_from_tool_span(
             )
             return None, None
 
-    args_raw = tool_span.get_tag(_TAG_TOOL_CALL_ARGS, "{}")
+    args_raw = tool_span.get_tag(ADK_TOOL_CALL_ARGS, "{}")
     args = _parse_json_tag(args_raw, "tool_call_args")
 
     fc = genai_types.FunctionCall(
@@ -316,7 +269,7 @@ def _extract_from_tool_span(
         id=tool_call_id,
     )
 
-    response_raw = tool_span.get_tag(_TAG_TOOL_RESPONSE)
+    response_raw = tool_span.get_tag(ADK_TOOL_RESPONSE)
     fr = None
     if response_raw:
         response_data = _parse_json_tag(response_raw, "tool_response")
@@ -334,7 +287,7 @@ def _extract_from_tool_span(
 def _extract_function_calls_from_llm_response(
     call_llm: Span,
 ) -> list[genai_types.FunctionCall]:
-    llm_response_raw = call_llm.get_tag(_TAG_LLM_RESPONSE, "{}")
+    llm_response_raw = call_llm.get_tag(ADK_LLM_RESPONSE, "{}")
     llm_response = _parse_json_tag(llm_response_raw, "llm_response")
 
     content_dict = llm_response.get("content", {})

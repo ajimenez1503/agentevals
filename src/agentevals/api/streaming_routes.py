@@ -15,6 +15,7 @@ from ..converter import convert_traces
 from ..loader.otlp import OtlpJsonLoader
 from ..runner import run_evaluation
 from ..config import EvalRunConfig
+from ..trace_attrs import OTEL_GENAI_INPUT_MESSAGES, OTEL_GENAI_REQUEST_MODEL
 from ..utils.log_enrichment import enrich_spans_with_logs
 
 logger = logging.getLogger(__name__)
@@ -79,11 +80,22 @@ async def create_eval_set_from_session(request: CreateEvalSetRequest):
 
     try:
         trace_file = await trace_manager._save_spans_to_temp_file(session)
+        logger.debug(
+            "Session %s: %d spans, %d logs saved to %s",
+            request.session_id, len(session.spans), len(session.logs), trace_file,
+        )
         loader = OtlpJsonLoader()
         traces = loader.load(str(trace_file))
 
         if not traces:
-            raise HTTPException(status_code=400, detail="No traces found in session")
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"No traces found in session (spans={len(session.spans)}, "
+                    f"logs={len(session.logs)}). If using the SDK with langchain/openai, "
+                    f"ensure opentelemetry-instrumentation-openai-v2 is installed."
+                ),
+            )
 
         conversion_results = convert_traces(traces)
         if not conversion_results:
@@ -126,6 +138,8 @@ async def create_eval_set_from_session(request: CreateEvalSetRequest):
             "num_invocations": len(all_invocations),
         }
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Failed to create eval set")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -212,6 +226,8 @@ async def evaluate_sessions(request: EvaluateSessionsRequest):
             "results": results,
         }
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Failed to evaluate sessions")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -262,6 +278,8 @@ async def prepare_evaluation(request: PrepareEvaluationRequest):
             "num_traces": len(trace_files),
         }
 
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Failed to prepare evaluation")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -304,7 +322,7 @@ async def get_trace(request: GetTraceRequest):
         has_genai_spans = any(
             span.get("attributes", [])
             and any(
-                attr.get("key") in ("gen_ai.request.model", "gen_ai.input.messages")
+                attr.get("key") in (OTEL_GENAI_REQUEST_MODEL, OTEL_GENAI_INPUT_MESSAGES)
                 for attr in span.get("attributes", [])
             )
             for span in session.spans

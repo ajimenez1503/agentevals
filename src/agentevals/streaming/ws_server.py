@@ -15,8 +15,10 @@ from fastapi import WebSocket, WebSocketDisconnect
 from .session import TraceSession
 from .incremental_processor import IncrementalInvocationExtractor
 from ..converter import convert_traces
+from ..extraction import extract_token_usage_from_attrs, is_llm_span
 from ..loader.base import Trace
 from ..loader.otlp import OtlpJsonLoader
+from ..trace_attrs import OTEL_GENAI_INPUT_MESSAGES, OTEL_GENAI_REQUEST_MODEL
 from ..utils.log_enrichment import enrich_spans_with_logs
 
 logger = logging.getLogger(__name__)
@@ -316,7 +318,7 @@ class StreamingTraceManager:
             has_genai_spans = any(
                 span.get("attributes", [])
                 and any(
-                    attr.get("key") in ("gen_ai.request.model", "gen_ai.input.messages")
+                    attr.get("key") in (OTEL_GENAI_REQUEST_MODEL, OTEL_GENAI_INPUT_MESSAGES)
                     for attr in span.get("attributes", [])
                 )
                 for span in session.spans
@@ -401,74 +403,27 @@ class StreamingTraceManager:
             return []
 
     def _extract_model_info_from_trace(self, trace: Trace, invocation_idx: int) -> dict:
-        """Extract model information from LLM spans in the trace.
-
-        Supports both ADK and GenAI semantic convention formats.
-        Extracts:
-        - Model name(s) used
-        - Total input tokens (prompt tokens)
-        - Total output tokens (response tokens)
-
-        Args:
-            trace: The trace object containing all spans
-            invocation_idx: Index of the invocation within the trace
-
-        Returns:
-            Dictionary with optional keys:
-                - models: List of model names used
-                - inputTokens: Total prompt tokens consumed
-                - outputTokens: Total response tokens generated
-        """
-        model_info = {}
-        models_used = set()
+        """Extract model information from LLM spans in the trace."""
+        model_info: dict[str, Any] = {}
+        models_used: set[str] = set()
         total_input_tokens = 0
         total_output_tokens = 0
 
         llm_spans = [
             s for s in trace.all_spans
-            if s.get_tag("gen_ai.request.model") or 'call_llm' in s.operation_name
+            if is_llm_span(s) or "call_llm" in s.operation_name
         ]
 
-        if not llm_spans:
-            return model_info
-
-        for llm_span in llm_spans:
-            genai_model = llm_span.get_tag("gen_ai.request.model")
-            if genai_model:
-                models_used.add(genai_model)
-
-            genai_input_tokens = llm_span.get_tag("gen_ai.usage.input_tokens")
-            if genai_input_tokens is not None:
-                try:
-                    total_input_tokens += int(genai_input_tokens)
-                except (ValueError, TypeError):
-                    pass
-
-            genai_output_tokens = llm_span.get_tag("gen_ai.usage.output_tokens")
-            if genai_output_tokens is not None:
-                try:
-                    total_output_tokens += int(genai_output_tokens)
-                except (ValueError, TypeError):
-                    pass
-
-            llm_request_raw = llm_span.get_tag("gcp.vertex.agent.llm_request", "{}")
-            try:
-                llm_request = json.loads(llm_request_raw)
-                if "model" in llm_request:
-                    models_used.add(llm_request["model"])
-            except Exception:
-                pass
-
-            llm_response_raw = llm_span.get_tag("gcp.vertex.agent.llm_response", "{}")
-            try:
-                llm_response = json.loads(llm_response_raw)
-                usage = llm_response.get("usage_metadata", {})
-                if "prompt_token_count" in usage:
-                    total_input_tokens += usage["prompt_token_count"]
-                if "candidates_token_count" in usage:
-                    total_output_tokens += usage["candidates_token_count"]
-            except Exception:
-                pass
+        for span in llm_spans:
+            in_toks, out_toks, model = extract_token_usage_from_attrs(span.tags)
+            if model and model != "unknown":
+                models_used.add(model)
+            else:
+                genai_model = span.get_tag(OTEL_GENAI_REQUEST_MODEL)
+                if genai_model:
+                    models_used.add(genai_model)
+            total_input_tokens += in_toks
+            total_output_tokens += out_toks
 
         if models_used:
             model_info["models"] = list(models_used)
