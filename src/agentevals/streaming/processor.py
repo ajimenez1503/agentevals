@@ -202,7 +202,8 @@ class AgentEvalsStreamingProcessor:
         if not hasattr(span, "events") or not span.events:
             return
 
-        _genai_event_keys = {"gen_ai.input.messages", "gen_ai.output.messages"}
+        from ..trace_attrs import OTEL_GENAI_INPUT_MESSAGES, OTEL_GENAI_OUTPUT_MESSAGES
+        _genai_event_keys = {OTEL_GENAI_INPUT_MESSAGES, OTEL_GENAI_OUTPUT_MESSAGES}
         existing_keys = {a["key"] for a in attributes}
 
         for event in span.events:

@@ -404,18 +404,28 @@ class AgentEvals:
         multiple times — OTel instrumentors track their own state and
         ``instrument()`` is idempotent.
         """
+        found_instrumentor = False
+
         try:
             from opentelemetry.instrumentation.openai_v2 import OpenAIInstrumentor
 
             OpenAIInstrumentor().instrument()
+            found_instrumentor = True
         except (ImportError, RuntimeError):
             pass
 
         try:
             import strands  # noqa: F401
             os.environ.setdefault("OTEL_SEMCONV_STABILITY_OPT_IN", "gen_ai_latest_experimental")
+            found_instrumentor = True
         except ImportError:
             pass
+
+        if not found_instrumentor:
+            logger.warning(
+                "No OTel instrumentor found. LLM calls won't produce traces. "
+                "Install one, e.g.: pip install opentelemetry-instrumentation-openai-v2"
+            )
 
     def _generate_session_id(self) -> str:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")

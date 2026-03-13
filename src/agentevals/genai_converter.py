@@ -10,13 +10,23 @@ Supports traces from frameworks using OpenTelemetry GenAI semantic conventions:
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from google.adk.evaluation.eval_case import IntermediateData, Invocation
 from google.genai import types as genai_types
 
+from .converter import ConversionResult
+from .extraction import GenAIExtractor, is_invocation_span, is_llm_span
 from .loader.base import Span, Trace
+from .trace_attrs import (
+    OTEL_GENAI_INPUT_MESSAGES,
+    OTEL_GENAI_OUTPUT_MESSAGES,
+    OTEL_GENAI_REQUEST_MODEL,
+    OTEL_GENAI_TOOL_CALL_ARGUMENTS,
+    OTEL_GENAI_TOOL_CALL_ID,
+    OTEL_GENAI_TOOL_CALL_RESULT,
+    OTEL_GENAI_TOOL_NAME,
+)
 from .utils.genai_messages import (
     ASSISTANT_ROLES,
     USER_ROLES,
@@ -27,23 +37,6 @@ from .utils.genai_messages import (
 )
 
 logger = logging.getLogger(__name__)
-
-_TAG_GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
-_TAG_GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
-_TAG_GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
-_TAG_GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
-_TAG_GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
-_TAG_GEN_AI_TOOL_NAME = "gen_ai.tool.name"
-_TAG_GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
-_TAG_GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
-_TAG_GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
-
-
-@dataclass
-class ConversionResult:
-    trace_id: str
-    invocations: list[Invocation] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -75,11 +68,11 @@ def convert_genai_trace(trace: Trace) -> ConversionResult:
 
     logger.debug(f"Converting GenAI trace {trace.trace_id} ({len(trace.all_spans)} spans)")
 
-    llm_root_spans = [s for s in trace.root_spans if _is_llm_span(s)]
+    llm_root_spans = [s for s in trace.root_spans if is_llm_span(s)]
 
     if llm_root_spans:
         has_messages = any(
-            s.get_tag(_TAG_GEN_AI_INPUT_MESSAGES) or s.get_tag(_TAG_GEN_AI_OUTPUT_MESSAGES)
+            s.get_tag(OTEL_GENAI_INPUT_MESSAGES) or s.get_tag(OTEL_GENAI_OUTPUT_MESSAGES)
             for s in llm_root_spans
         )
         if not has_messages:
@@ -96,9 +89,9 @@ def convert_genai_trace(trace: Trace) -> ConversionResult:
         # across calls (e.g. a framework that re-sends full history on each LLM call).
         # Invocation spans (e.g. invoke_agent) each contain self-contained message histories
         # and should each map to a separate invocation via _find_genai_invocation_spans().
-        if not any(_is_genai_invocation_span(s) for s in llm_root_spans):
+        if not any(is_invocation_span(s) for s in llm_root_spans):
             has_enriched = any(
-                s.get_tag(_TAG_GEN_AI_INPUT_MESSAGES) and s.get_tag(_TAG_GEN_AI_OUTPUT_MESSAGES)
+                s.get_tag(OTEL_GENAI_INPUT_MESSAGES) and s.get_tag(OTEL_GENAI_OUTPUT_MESSAGES)
                 for s in llm_root_spans
             )
 
@@ -139,7 +132,7 @@ def _find_genai_invocation_spans(trace: Trace) -> list[Span]:
     candidates = []
 
     for span in trace.root_spans:
-        if _is_genai_invocation_span(span):
+        if is_invocation_span(span):
             candidates.append(span)
 
     if not candidates:
@@ -148,11 +141,11 @@ def _find_genai_invocation_spans(trace: Trace) -> list[Span]:
                 candidates.append(span)
 
     if not candidates and trace.root_spans:
-        llm_spans = [s for s in trace.root_spans if _is_llm_span(s)]
+        llm_spans = [s for s in trace.root_spans if is_llm_span(s)]
 
         if len(llm_spans) > 1:
             has_enriched_messages = any(
-                s.get_tag(_TAG_GEN_AI_INPUT_MESSAGES) or s.get_tag(_TAG_GEN_AI_OUTPUT_MESSAGES)
+                s.get_tag(OTEL_GENAI_INPUT_MESSAGES) or s.get_tag(OTEL_GENAI_OUTPUT_MESSAGES)
                 for s in llm_spans
             )
 
@@ -178,7 +171,7 @@ def _extract_single_turn(inv_span: Span) -> _ConversationTurn:
     logger.debug(f"Found {len(llm_spans)} LLM spans")
 
     if not llm_spans:
-        if _is_llm_span(inv_span):
+        if is_llm_span(inv_span):
             llm_spans = [inv_span]
         else:
             raise ValueError(
@@ -203,10 +196,10 @@ def _extract_single_turn(inv_span: Span) -> _ConversationTurn:
 
 
 def _extract_multiturn_turns(llm_spans: list[Span]) -> list[_ConversationTurn]:
-    messages_raw = llm_spans[0].get_tag(_TAG_GEN_AI_INPUT_MESSAGES, "[]")
+    messages_raw = llm_spans[0].get_tag(OTEL_GENAI_INPUT_MESSAGES, "[]")
     all_input_messages = parse_json_attr(messages_raw, "gen_ai.input.messages")
 
-    output_messages_raw = llm_spans[0].get_tag(_TAG_GEN_AI_OUTPUT_MESSAGES, "[]")
+    output_messages_raw = llm_spans[0].get_tag(OTEL_GENAI_OUTPUT_MESSAGES, "[]")
     all_output_messages = parse_json_attr(output_messages_raw, "gen_ai.output.messages")
 
     if not isinstance(all_input_messages, list) or not isinstance(all_output_messages, list):
@@ -292,7 +285,7 @@ def _turn_to_invocation(turn: _ConversationTurn) -> Invocation:
 
 
 def _extract_user_text(llm_span: Span) -> str:
-    messages_raw = llm_span.get_tag(_TAG_GEN_AI_INPUT_MESSAGES, "[]")
+    messages_raw = llm_span.get_tag(OTEL_GENAI_INPUT_MESSAGES, "[]")
     messages = parse_json_attr(messages_raw, "gen_ai.input.messages")
 
     if not isinstance(messages, list):
@@ -314,7 +307,7 @@ def _extract_user_text(llm_span: Span) -> str:
 
 
 def _extract_assistant_text(llm_span: Span) -> str:
-    messages_raw = llm_span.get_tag(_TAG_GEN_AI_OUTPUT_MESSAGES, "[]")
+    messages_raw = llm_span.get_tag(OTEL_GENAI_OUTPUT_MESSAGES, "[]")
     messages = parse_json_attr(messages_raw, "gen_ai.output.messages")
 
     if not isinstance(messages, list):
@@ -349,20 +342,20 @@ def _extract_tool_calls(
     tool_responses: list[_ToolResponse] = []
 
     for tool_span in tool_spans:
-        tool_name = tool_span.get_tag(_TAG_GEN_AI_TOOL_NAME)
+        tool_name = tool_span.get_tag(OTEL_GENAI_TOOL_NAME)
         if not tool_name:
             logger.warning(f"Tool span missing gen_ai.tool.name: {tool_span.operation_name}")
             continue
 
-        tool_call_id = tool_span.get_tag(_TAG_GEN_AI_TOOL_CALL_ID)
+        tool_call_id = tool_span.get_tag(OTEL_GENAI_TOOL_CALL_ID)
 
-        args_raw = tool_span.get_tag(_TAG_GEN_AI_TOOL_CALL_ARGUMENTS, "{}")
+        args_raw = tool_span.get_tag(OTEL_GENAI_TOOL_CALL_ARGUMENTS, "{}")
         args = parse_json_attr(args_raw, "gen_ai.tool.call.arguments")
         if not isinstance(args, dict):
             args = {}
 
         if not args:
-            input_msgs_raw = tool_span.get_tag(_TAG_GEN_AI_INPUT_MESSAGES)
+            input_msgs_raw = tool_span.get_tag(OTEL_GENAI_INPUT_MESSAGES)
             if input_msgs_raw:
                 args, _ = extract_tool_call_args_from_messages(input_msgs_raw, tool_name)
 
@@ -372,7 +365,7 @@ def _extract_tool_calls(
         else:
             tool_calls_no_id.append(tc)
 
-        result_raw = tool_span.get_tag(_TAG_GEN_AI_TOOL_CALL_RESULT)
+        result_raw = tool_span.get_tag(OTEL_GENAI_TOOL_CALL_RESULT)
         if result_raw:
             result_data = parse_json_attr(result_raw, "gen_ai.tool.call.result")
             if result_data is None:
@@ -389,7 +382,7 @@ def _extract_tool_calls(
     # Extract tool calls from LLM output messages, deduplicating by tool call ID
     if llm_spans:
         for llm_span in llm_spans:
-            messages_raw = llm_span.get_tag(_TAG_GEN_AI_OUTPUT_MESSAGES, "[]")
+            messages_raw = llm_span.get_tag(OTEL_GENAI_OUTPUT_MESSAGES, "[]")
             messages = parse_json_attr(messages_raw, "gen_ai.output.messages")
 
             if not isinstance(messages, list):
@@ -422,46 +415,18 @@ def _extract_tool_calls(
     return tool_calls, tool_responses
 
 
-def _is_llm_span(span: Span) -> bool:
-    return (
-        span.get_tag(_TAG_GEN_AI_REQUEST_MODEL) is not None
-        or span.get_tag(_TAG_GEN_AI_INPUT_MESSAGES) is not None
-    )
-
-
-def _is_genai_invocation_span(span: Span) -> bool:
-    op_lower = span.operation_name.lower()
-    invocation_keywords = ["agent", "chain", "executor", "workflow"]
-    return any(keyword in op_lower for keyword in invocation_keywords)
-
-
-def _has_llm_children(span: Span) -> bool:
-    for child in span.children:
-        if _is_llm_span(child):
-            return True
-        if _has_llm_children(child):
-            return True
-    return False
+_genai_extractor = GenAIExtractor()
 
 
 def _find_llm_spans(root: Span) -> list[Span]:
-    results: list[Span] = []
-    _walk_spans(root, _is_llm_span, results)
-    results.sort(key=lambda s: s.start_time)
-    return results
+    return _genai_extractor.find_llm_spans_in(root)
 
 
 def _find_tool_spans(root: Span) -> list[Span]:
-    results: list[Span] = []
-    _walk_spans(root, lambda s: s.get_tag(_TAG_GEN_AI_TOOL_NAME) is not None, results)
-    results.sort(key=lambda s: s.start_time)
-    return results
+    return _genai_extractor.find_tool_spans_in(root)
 
 
-def _walk_spans(span: Span, predicate: Callable[[Span], bool], acc: list[Span]) -> None:
-    if predicate(span):
-        acc.append(span)
-    for child in span.children:
-        _walk_spans(child, predicate, acc)
+def _has_llm_children(span: Span) -> bool:
+    return _genai_extractor._has_llm_children(span)
 
 

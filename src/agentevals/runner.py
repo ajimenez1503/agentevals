@@ -25,22 +25,19 @@ from google.adk.evaluation.eval_set import EvalSet
 from google.adk.evaluation.evaluator import EvaluationResult, Evaluator
 
 from .config import EvalRunConfig
-from .converter import (
-    ConversionResult,
-    convert_traces,
-    _detect_trace_format,
-    _find_adk_spans,
-    _parse_json_tag,
-)
-from .utils.genai_messages import (
-    parse_json_attr,
-    extract_text_from_message,
-    USER_ROLES,
-    ASSISTANT_ROLES,
+from .converter import ConversionResult, convert_traces
+from .extraction import (
+    extract_agent_response_from_attrs,
+    extract_token_usage_from_attrs,
+    extract_user_text_from_attrs,
+    get_extractor,
+    is_llm_span,
+    is_tool_span,
 )
 from .loader.base import TraceLoader
 from .loader.jaeger import JaegerJsonLoader
 from .loader.otlp import OtlpJsonLoader
+from .trace_attrs import OTEL_GENAI_AGENT_NAME, OTEL_GENAI_REQUEST_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -504,51 +501,28 @@ def _extract_performance_metrics(trace) -> dict[str, Any]:
     output_tokens = []
     total_tokens = []
 
-    has_adk_invoke = any(s.operation_name.startswith("invoke_agent") for s in trace.all_spans)
+    extractor = get_extractor(trace)
+    invocation_spans = extractor.find_invocation_spans(trace)
 
-    if not has_adk_invoke and trace.root_spans:
+    if not invocation_spans and trace.root_spans:
         for root_span in trace.root_spans:
-            root_duration_ms = root_span.duration / 1000.0
-            agent_latencies.append(root_duration_ms)
+            agent_latencies.append(root_span.duration / 1000.0)
+
+    for inv_span in invocation_spans:
+        agent_latencies.append(inv_span.duration / 1000.0)
 
     for span in trace.all_spans:
         duration_ms = span.duration / 1000.0
+        role = extractor.classify_span(span)
 
-        is_adk_invoke = span.operation_name.startswith("invoke_agent")
-        is_adk_llm = span.operation_name.startswith("call_llm")
-        is_adk_tool = span.operation_name.startswith("execute_tool")
-        is_genai_llm = span.tags.get("gen_ai.request.model") is not None
-        is_genai_tool = span.tags.get("gen_ai.tool.name") is not None
-
-        if is_adk_invoke:
-            agent_latencies.append(duration_ms)
-        elif is_adk_llm or is_genai_llm:
+        if role == "llm":
             llm_latencies.append(duration_ms)
-
-            if is_adk_llm:
-                llm_response_raw = span.tags.get("gcp.vertex.agent.llm_response", "{}")
-                try:
-                    if isinstance(llm_response_raw, dict):
-                        llm_response = llm_response_raw
-                    else:
-                        llm_response = json.loads(llm_response_raw) if llm_response_raw else {}
-
-                    usage = llm_response.get("usage_metadata", {})
-                    if usage:
-                        prompt_tokens.append(usage.get("prompt_token_count", 0))
-                        output_tokens.append(usage.get("candidates_token_count", 0))
-                        total_tokens.append(usage.get("total_token_count", 0))
-                except (json.JSONDecodeError, AttributeError, TypeError):
-                    pass
-            elif is_genai_llm:
-                input_toks = span.tags.get("gen_ai.usage.input_tokens", 0)
-                output_toks = span.tags.get("gen_ai.usage.output_tokens", 0)
-                if isinstance(input_toks, (int, float)) and isinstance(output_toks, (int, float)):
-                    prompt_tokens.append(int(input_toks))
-                    output_tokens.append(int(output_toks))
-                    total_tokens.append(int(input_toks) + int(output_toks))
-
-        elif is_adk_tool or is_genai_tool:
+            in_toks, out_toks, _ = extract_token_usage_from_attrs(span.tags)
+            if in_toks or out_toks:
+                prompt_tokens.append(in_toks)
+                output_tokens.append(out_toks)
+                total_tokens.append(in_toks + out_toks)
+        elif role == "tool":
             tool_latencies.append(duration_ms)
 
     def calc_percentiles(values: list[float]) -> dict[str, float]:
@@ -593,65 +567,34 @@ def _extract_trace_metadata(trace) -> dict[str, Any]:
         "final_output_preview": None,
     }
 
-    trace_format = _detect_trace_format(trace)
+    extractor = get_extractor(trace)
+    invocation_spans = extractor.find_invocation_spans(trace)
 
-    if trace_format == "adk":
-        invoke_spans = _find_adk_spans(trace, "invoke_agent")
-        if invoke_spans:
-            metadata["agent_name"] = invoke_spans[0].get_tag("gen_ai.agent.name")
-            metadata["start_time"] = invoke_spans[0].start_time
+    if invocation_spans:
+        first_inv = invocation_spans[0]
+        metadata["agent_name"] = first_inv.get_tag(OTEL_GENAI_AGENT_NAME)
+        metadata["start_time"] = first_inv.start_time
 
-        call_llm_spans = _find_adk_spans(trace, "call_llm")
-        if call_llm_spans:
-            metadata["model"] = call_llm_spans[0].get_tag("gen_ai.request.model")
-
-            llm_request_raw = call_llm_spans[0].get_tag("gcp.vertex.agent.llm_request", "{}")
-            llm_request = _parse_json_tag(llm_request_raw, "llm_request")
-            for content in reversed(llm_request.get("contents", [])):
-                if content.get("role") != "user":
-                    continue
-                text_parts = [p["text"] for p in content.get("parts", []) if "text" in p]
-                if text_parts:
-                    metadata["user_input_preview"] = _truncate(" ".join(text_parts))
-                    break
-
-            last_llm = call_llm_spans[-1]
-            llm_response_raw = last_llm.get_tag("gcp.vertex.agent.llm_response", "{}")
-            llm_response = _parse_json_tag(llm_response_raw, "llm_response")
-            response_content = llm_response.get("content", {})
-            text_parts = [p["text"] for p in response_content.get("parts", []) if "text" in p]
-            if text_parts:
-                metadata["final_output_preview"] = _truncate(" ".join(text_parts))
-    else:
-        llm_spans = [s for s in trace.all_spans if s.get_tag("gen_ai.request.model") is not None]
+        llm_spans = extractor.find_llm_spans_in(first_inv)
         if llm_spans:
-            metadata["model"] = llm_spans[0].get_tag("gen_ai.request.model")
-            metadata["start_time"] = llm_spans[0].start_time
+            metadata["model"] = llm_spans[0].get_tag(OTEL_GENAI_REQUEST_MODEL)
 
-            agent_name = llm_spans[0].get_tag("gen_ai.agent.name")
-            if agent_name:
-                metadata["agent_name"] = agent_name
-            elif trace.root_spans:
-                metadata["agent_name"] = trace.root_spans[0].operation_name
+            user_text = extract_user_text_from_attrs(llm_spans[0].tags)
+            if user_text:
+                metadata["user_input_preview"] = _truncate(user_text)
 
-            messages_raw = llm_spans[0].get_tag("gen_ai.input.messages", "[]")
-            messages = parse_json_attr(messages_raw, "gen_ai.input.messages")
-            if isinstance(messages, list):
-                for msg in reversed(messages):
-                    if isinstance(msg, dict) and msg.get("role") in USER_ROLES:
-                        text = extract_text_from_message(msg)
-                        if text:
-                            metadata["user_input_preview"] = _truncate(text)
-                            break
+            agent_text = extract_agent_response_from_attrs(llm_spans[-1].tags)
+            if agent_text:
+                metadata["final_output_preview"] = _truncate(agent_text)
 
-            out_raw = llm_spans[-1].get_tag("gen_ai.output.messages", "[]")
-            out_messages = parse_json_attr(out_raw, "gen_ai.output.messages")
-            if isinstance(out_messages, list):
-                for msg in reversed(out_messages):
-                    if isinstance(msg, dict) and msg.get("role") in ASSISTANT_ROLES:
-                        text = extract_text_from_message(msg)
-                        if text:
-                            metadata["final_output_preview"] = _truncate(text)
-                            break
+    if not metadata["agent_name"] and trace.root_spans:
+        metadata["agent_name"] = trace.root_spans[0].operation_name
+
+    if not metadata["model"]:
+        for span in trace.all_spans:
+            model = span.get_tag(OTEL_GENAI_REQUEST_MODEL)
+            if model:
+                metadata["model"] = model
+                break
 
     return metadata
