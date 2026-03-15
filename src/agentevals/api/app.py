@@ -80,6 +80,10 @@ if _live_mode:
             },
         )
 
+
+def get_trace_manager():
+    return _trace_manager
+
 _static_dir = Path(__file__).parent.parent / "_static"
 _has_ui = _static_dir.is_dir() and (_static_dir / "index.html").exists()
 

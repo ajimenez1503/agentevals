@@ -199,9 +199,12 @@ function extractGenAIMetadata(trace: Trace): TraceMetadata {
       metadata.sessionId = trace.traceId.substring(0, 12);
     }
 
-    const messagesAttr = getInputMessagesAttr(firstLlm);
-    if (messagesAttr) {
-      metadata.userInputPreview = extractGenAIUserPreview(messagesAttr);
+    for (const span of llmSpans) {
+      const messagesAttr = getInputMessagesAttr(span);
+      if (messagesAttr) {
+        metadata.userInputPreview = extractGenAIUserPreview(messagesAttr);
+        break;
+      }
     }
 
     const lastLlm = llmSpans[llmSpans.length - 1];
