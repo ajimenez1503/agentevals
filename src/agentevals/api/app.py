@@ -65,6 +65,8 @@ if _live_mode:
             try:
                 while True:
                     event = await queue.get()
+                    if event is None:
+                        break
                     yield f"data: {json.dumps(event)}\n\n"
             except asyncio.CancelledError:
                 pass
@@ -125,4 +127,4 @@ async def on_startup():
 @app.on_event("shutdown")
 async def on_shutdown():
     if _trace_manager:
-        await _trace_manager.stop_cleanup_task()
+        await _trace_manager.shutdown()

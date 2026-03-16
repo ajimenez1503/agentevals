@@ -155,6 +155,27 @@ def list_metrics() -> None:
         click.echo()
 
 
+def _link_server_shutdown(*servers) -> None:
+    """Link multiple uvicorn servers so a single SIGINT shuts down all of them.
+
+    Uvicorn installs per-server signal handlers; the last server's handler
+    overwrites earlier ones.  This replaces handle_exit on every server with
+    a shared callback that sets should_exit / force_exit on all of them.
+    """
+    import signal as _signal
+
+    def _shared_exit(sig, frame):
+        force = all(s.should_exit for s in servers)
+        for s in servers:
+            if force and sig == _signal.SIGINT:
+                s.force_exit = True
+            else:
+                s.should_exit = True
+
+    for s in servers:
+        s.handle_exit = _shared_exit
+
+
 @main.command("serve")
 @click.option(
     "--dev",
@@ -258,6 +279,7 @@ def serve(dev: bool, host: str, port: int, otlp_port: int, eval_sets: str | None
             )
             main_server = uvicorn.Server(main_config)
             otlp_server = uvicorn.Server(otlp_config)
+            _link_server_shutdown(main_server, otlp_server)
             await asyncio.gather(main_server.serve(), otlp_server.serve())
 
         asyncio.run(_run_dev_servers())
@@ -283,6 +305,7 @@ def serve(dev: bool, host: str, port: int, otlp_port: int, eval_sets: str | None
             )
             main_server = uvicorn.Server(main_config)
             otlp_server = uvicorn.Server(otlp_config)
+            _link_server_shutdown(main_server, otlp_server)
             await asyncio.gather(main_server.serve(), otlp_server.serve())
 
         asyncio.run(_run_ui_servers())

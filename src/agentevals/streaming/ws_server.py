@@ -61,8 +61,10 @@ class StreamingTraceManager:
             self._cleanup_task = asyncio.create_task(self._cleanup_old_sessions_loop())
             logger.info("Started session cleanup task (TTL: %s, max: %d)", self.session_ttl, self.max_sessions)
 
-    async def stop_cleanup_task(self) -> None:
-        """Stop the background cleanup task."""
+    async def shutdown(self) -> None:
+        """Gracefully shut down: close SSE clients and cancel background tasks."""
+        for queue in self.sse_queues:
+            queue.put_nowait(None)
         if self._cleanup_task:
             self._cleanup_task.cancel()
             try:
