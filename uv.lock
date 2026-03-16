@@ -30,6 +30,7 @@ dependencies = [
     { name = "click" },
     { name = "fastapi" },
     { name = "google-adk", extra = ["eval"] },
+    { name = "opentelemetry-proto" },
     { name = "pandas" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
@@ -41,7 +42,6 @@ dependencies = [
 live = [
     { name = "httpx" },
     { name = "mcp" },
-    { name = "opentelemetry-proto" },
 ]
 streaming = [
     { name = "opentelemetry-sdk" },
@@ -60,7 +60,7 @@ requires-dist = [
     { name = "google-adk", extras = ["eval"], specifier = ">=1.25.0" },
     { name = "httpx", marker = "extra == 'live'", specifier = ">=0.27.0" },
     { name = "mcp", marker = "extra == 'live'", specifier = ">=1.26.0" },
-    { name = "opentelemetry-proto", marker = "extra == 'live'", specifier = ">=1.36.0" },
+    { name = "opentelemetry-proto", specifier = ">=1.36.0" },
     { name = "opentelemetry-sdk", marker = "extra == 'streaming'", specifier = ">=1.20.0" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "python-dotenv", specifier = ">=1.0.0" },

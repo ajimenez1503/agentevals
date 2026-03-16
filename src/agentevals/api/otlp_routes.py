@@ -25,18 +25,13 @@ from ..trace_attrs import (
     OTEL_SCOPE_VERSION,
 )
 
-try:
-    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
-        ExportTraceServiceRequest as TraceServiceRequestPB,
-    )
-    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
-        ExportLogsServiceRequest as LogsServiceRequestPB,
-    )
-    from google.protobuf.json_format import MessageToDict
-
-    _HAS_PROTOBUF = True
-except ImportError:
-    _HAS_PROTOBUF = False
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTraceServiceRequest as TraceServiceRequestPB,
+)
+from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
+    ExportLogsServiceRequest as LogsServiceRequestPB,
+)
+from google.protobuf.json_format import MessageToDict
 
 if TYPE_CHECKING:
     from ..streaming.ws_server import StreamingTraceManager
@@ -64,12 +59,6 @@ async def receive_traces(request: Request) -> Response:
     content_type = request.headers.get("content-type", "")
 
     if "application/x-protobuf" in content_type:
-        if not _HAS_PROTOBUF:
-            return Response(
-                status_code=501,
-                content="Protobuf support requires opentelemetry-proto. "
-                'Install with: pip install "agentevals[live]"',
-            )
         raw = await request.body()
         body = _decode_protobuf_traces(raw)
     else:
@@ -92,12 +81,6 @@ async def receive_logs(request: Request) -> Response:
     content_type = request.headers.get("content-type", "")
 
     if "application/x-protobuf" in content_type:
-        if not _HAS_PROTOBUF:
-            return Response(
-                status_code=501,
-                content="Protobuf support requires opentelemetry-proto. "
-                'Install with: pip install "agentevals[live]"',
-            )
         raw = await request.body()
         body = _decode_protobuf_logs(raw)
     else:
