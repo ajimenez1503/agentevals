@@ -7,6 +7,12 @@ import logging
 from typing import Any
 
 from .base import Span, Trace, TraceLoader
+from ..trace_attrs import (
+    OTEL_GENAI_INPUT_MESSAGES,
+    OTEL_GENAI_OUTPUT_MESSAGES,
+    OTEL_SCOPE,
+    OTEL_SCOPE_VERSION,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +86,8 @@ class OtlpJsonLoader(TraceLoader):
         ]
         return self._build_traces(all_spans)
 
+    _GENAI_EVENT_KEYS = {OTEL_GENAI_INPUT_MESSAGES, OTEL_GENAI_OUTPUT_MESSAGES}
+
     def _parse_span(
         self,
         span_data: dict,
@@ -91,9 +99,11 @@ class OtlpJsonLoader(TraceLoader):
         attributes = self._extract_attributes(span_data.get("attributes", []))
 
         if scope_name:
-            attributes["otel.scope.name"] = scope_name
+            attributes[OTEL_SCOPE] = scope_name
         if scope_version:
-            attributes["otel.scope.version"] = scope_version
+            attributes[OTEL_SCOPE_VERSION] = scope_version
+
+        self._promote_genai_event_attributes(span_data, attributes)
 
         attributes.update(resource_attrs)
 
@@ -113,6 +123,21 @@ class OtlpJsonLoader(TraceLoader):
             duration=duration_us,
             tags=attributes,
         )
+
+    def _promote_genai_event_attributes(self, span_data: dict, attributes: dict) -> None:
+        """Promote gen_ai.input/output.messages from span events to attributes.
+
+        Some SDKs (e.g. Strands) store message content in span events rather
+        than span attributes. This promotes those values so the converter can
+        find them via normal attribute lookups.
+        """
+        for event in span_data.get("events", []):
+            for attr in event.get("attributes", []):
+                key = attr.get("key", "")
+                if key in self._GENAI_EVENT_KEYS and key not in attributes:
+                    value_obj = attr.get("value", {})
+                    if "stringValue" in value_obj:
+                        attributes[key] = value_obj["stringValue"]
 
     def _extract_attributes(self, attrs_list: list[dict]) -> dict:
         """Convert OTLP attributes array to flat dict.

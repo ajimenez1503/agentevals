@@ -65,6 +65,8 @@ if _live_mode:
             try:
                 while True:
                     event = await queue.get()
+                    if event is None:
+                        break
                     yield f"data: {json.dumps(event)}\n\n"
             except asyncio.CancelledError:
                 pass
@@ -79,6 +81,10 @@ if _live_mode:
                 "Connection": "keep-alive",
             },
         )
+
+
+def get_trace_manager():
+    return _trace_manager
 
 _static_dir = Path(__file__).parent.parent / "_static"
 _has_ui = _static_dir.is_dir() and (_static_dir / "index.html").exists()
@@ -121,4 +127,4 @@ async def on_startup():
 @app.on_event("shutdown")
 async def on_shutdown():
     if _trace_manager:
-        await _trace_manager.stop_cleanup_task()
+        await _trace_manager.shutdown()

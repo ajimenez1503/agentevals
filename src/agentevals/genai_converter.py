@@ -85,17 +85,13 @@ def convert_genai_trace(trace: Trace) -> ConversionResult:
             result.warnings.append(msg)
 
     if len(llm_root_spans) > 1:
-        # Multi-turn extraction applies only to raw LLM spans whose message content accumulates
-        # across calls (e.g. a framework that re-sends full history on each LLM call).
-        # Invocation spans (e.g. invoke_agent) each contain self-contained message histories
-        # and should each map to a separate invocation via _find_genai_invocation_spans().
         if not any(is_invocation_span(s) for s in llm_root_spans):
             has_enriched = any(
                 s.get_tag(OTEL_GENAI_INPUT_MESSAGES) and s.get_tag(OTEL_GENAI_OUTPUT_MESSAGES)
                 for s in llm_root_spans
             )
 
-            if has_enriched:
+            if has_enriched and _is_broadcast_enriched(llm_root_spans[0]):
                 logger.debug(f"Multi-turn conversation: {len(llm_root_spans)} LLM spans")
                 try:
                     turns = _extract_multiturn_turns(llm_root_spans)
@@ -125,6 +121,7 @@ def convert_genai_trace(trace: Trace) -> ConversionResult:
             logger.warning(msg)
             result.warnings.append(msg)
 
+    result.invocations = _deduplicate_invocations(result.invocations)
     return result
 
 
@@ -149,8 +146,8 @@ def _find_genai_invocation_spans(trace: Trace) -> list[Span]:
                 for s in llm_spans
             )
 
-            if has_enriched_messages:
-                logger.debug(f"Found {len(llm_spans)} LLM spans with enriched messages, treating as single multi-turn conversation")
+            if has_enriched_messages and _is_broadcast_enriched(llm_spans[0]):
+                logger.debug(f"Found {len(llm_spans)} LLM spans with broadcast-enriched messages, treating as single multi-turn conversation")
                 return [llm_spans[0]]
 
         logger.debug("No clear invocation spans found, treating each root span as invocation")
@@ -258,6 +255,39 @@ def _extract_multiturn_turns(llm_spans: list[Span]) -> list[_ConversationTurn]:
     return turns
 
 
+def _deduplicate_invocations(invocations: list[Invocation]) -> list[Invocation]:
+    """Deduplicate invocations with the same user text, keeping the best one.
+
+    The OpenAI instrumentor creates separate LLM calls for tool-use loops within
+    a single conversation turn. Each call logs the full conversation history, so
+    multiple spans produce invocations with the same user text. We keep the last
+    one per unique user text — it has the final response (not the intermediate
+    tool-call-only response).
+    """
+    if len(invocations) <= 1:
+        return invocations
+
+    def _user_text(inv: Invocation) -> str:
+        if inv.user_content and inv.user_content.parts:
+            return inv.user_content.parts[0].text or ""
+        return ""
+
+    seen: dict[str, int] = {}
+    always_keep: set[int] = set()
+    for i, inv in enumerate(invocations):
+        text = _user_text(inv)
+        if not text.strip():
+            always_keep.add(i)
+        else:
+            seen[text] = i
+
+    if len(seen) + len(always_keep) == len(invocations):
+        return invocations
+
+    keep = always_keep | set(seen.values())
+    return [inv for i, inv in enumerate(invocations) if i in keep]
+
+
 def _turn_to_invocation(turn: _ConversationTurn) -> Invocation:
     user_content = genai_types.Content(
         role="user",
@@ -291,7 +321,7 @@ def _extract_user_text(llm_span: Span) -> str:
     if not isinstance(messages, list):
         messages = []
 
-    for msg in messages:
+    for msg in reversed(messages):
         if not isinstance(msg, dict):
             continue
         if msg.get("role") in USER_ROLES:
@@ -331,6 +361,50 @@ def _extract_assistant_text(llm_span: Span) -> str:
         f"LLM span {llm_span.span_id}: no assistant message with content in gen_ai.output.messages ({len(messages)} messages)"
     )
     return ""
+
+
+def _trim_cumulative_output(llm_span: Span, output_messages: list[dict]) -> list[dict]:
+    """For cumulative-history traces, return only the current turn's output messages.
+
+    The OpenAI instrumentor v2 stores the full conversation history in each span.
+    Each span's output includes ALL previous turns' assistant responses. Given N
+    user messages in input, the current turn is N. We skip past the first (N-1)
+    assistant text responses in the output — everything after that belongs to the
+    current turn.
+    """
+    input_raw = llm_span.get_tag(OTEL_GENAI_INPUT_MESSAGES)
+    if not input_raw:
+        return output_messages
+
+    input_messages = parse_json_attr(input_raw, "gen_ai.input.messages")
+    if not isinstance(input_messages, list):
+        return output_messages
+
+    user_count = sum(
+        1 for m in input_messages
+        if isinstance(m, dict) and m.get("role") in USER_ROLES
+    )
+    if user_count <= 1:
+        return output_messages
+
+    previous_turns = user_count - 1
+    text_responses_seen = 0
+
+    for i, msg in enumerate(output_messages):
+        if not isinstance(msg, dict) or msg.get("role") not in ASSISTANT_ROLES:
+            continue
+        content = extract_text_from_message(msg)
+        if content:
+            text_responses_seen += 1
+            if text_responses_seen >= previous_turns:
+                trimmed = output_messages[i + 1:]
+                logger.debug(
+                    "Trimmed cumulative output: %d → %d messages (skipped %d previous turns)",
+                    len(output_messages), len(trimmed), previous_turns,
+                )
+                return trimmed
+
+    return output_messages
 
 
 def _extract_tool_calls(
@@ -379,7 +453,6 @@ def _extract_tool_calls(
                 id=tool_call_id,
             ))
 
-    # Extract tool calls from LLM output messages, deduplicating by tool call ID
     if llm_spans:
         for llm_span in llm_spans:
             messages_raw = llm_span.get_tag(OTEL_GENAI_OUTPUT_MESSAGES, "[]")
@@ -387,6 +460,8 @@ def _extract_tool_calls(
 
             if not isinstance(messages, list):
                 continue
+
+            messages = _trim_cumulative_output(llm_span, messages)
 
             for msg in messages:
                 if not isinstance(msg, dict):
@@ -416,6 +491,25 @@ def _extract_tool_calls(
 
 
 _genai_extractor = GenAIExtractor()
+
+
+def _is_broadcast_enriched(span: Span) -> bool:
+    """Detect whether a span was enriched via broadcast (all messages in every span).
+
+    Broadcast enrichment (WebSocket path) injects the full conversation history
+    into every span, so the first span has multiple user messages.
+    Per-span enrichment (OTLP path) gives each span only its own messages,
+    so each span has at most 1 user message.
+    """
+    messages_raw = span.get_tag(OTEL_GENAI_INPUT_MESSAGES, "[]")
+    messages = parse_json_attr(messages_raw, "gen_ai.input.messages")
+    if not isinstance(messages, list):
+        return False
+    user_count = sum(
+        1 for m in messages
+        if isinstance(m, dict) and m.get("role") in USER_ROLES
+    )
+    return user_count > 1
 
 
 def _find_llm_spans(root: Span) -> list[Span]:

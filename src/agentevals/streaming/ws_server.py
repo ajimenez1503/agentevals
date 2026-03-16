@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import tempfile
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +39,10 @@ class StreamingTraceManager:
         self.session_ttl = timedelta(hours=session_ttl_hours)
         self.max_sessions = max_sessions
         self._cleanup_task: asyncio.Task | None = None
+        self._completion_timers: dict[str, asyncio.Task] = {}
+        self._idle_timers: dict[str, asyncio.Task] = {}
+        self._orphan_logs: list[dict] = []
+        self._orphan_log_max_age = timedelta(seconds=60)
 
     def register_sse_client(self) -> asyncio.Queue:
         """Register a new SSE client and return its queue."""
@@ -57,8 +61,10 @@ class StreamingTraceManager:
             self._cleanup_task = asyncio.create_task(self._cleanup_old_sessions_loop())
             logger.info("Started session cleanup task (TTL: %s, max: %d)", self.session_ttl, self.max_sessions)
 
-    async def stop_cleanup_task(self) -> None:
-        """Stop the background cleanup task."""
+    async def shutdown(self) -> None:
+        """Gracefully shut down: close SSE clients and cancel background tasks."""
+        for queue in self.sse_queues:
+            queue.put_nowait(None)
         if self._cleanup_task:
             self._cleanup_task.cancel()
             try:
@@ -86,7 +92,7 @@ class StreamingTraceManager:
         Returns:
             Number of sessions removed
         """
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         to_remove = []
 
         for session_id, session in self.sessions.items():
@@ -107,7 +113,17 @@ class StreamingTraceManager:
             del self.sessions[session_id]
             if session_id in self.incremental_extractors:
                 del self.incremental_extractors[session_id]
+            for key in (session_id, f"_reextract_{session_id}"):
+                if key in self._completion_timers:
+                    self._completion_timers.pop(key).cancel()
+            if session_id in self._idle_timers:
+                self._idle_timers.pop(session_id).cancel()
             logger.debug("Removed old session: %s", session_id)
+
+        cutoff = now - self._orphan_log_max_age
+        self._orphan_logs = [
+            e for e in self._orphan_logs if e["buffered_at"] >= cutoff
+        ]
 
         return len(to_remove)
 
@@ -118,6 +134,242 @@ class StreamingTraceManager:
                 await queue.put(event)
             except Exception as exc:
                 logger.warning("Failed to broadcast to SSE client: %s", exc)
+
+    def buffer_orphan_log(
+        self, trace_id: str, session_name: str | None, log_event: dict
+    ) -> None:
+        """Buffer a log event that arrived before its session was created.
+
+        OTLP BatchLogRecordProcessor and BatchSpanProcessor flush independently.
+        Logs may arrive at /v1/logs before the first span arrives at /v1/traces,
+        at which point no session exists yet. These orphan logs are buffered and
+        replayed when the matching session is created.
+        """
+        self._orphan_logs.append({
+            "trace_id": trace_id,
+            "session_name": session_name,
+            "log_event": log_event,
+            "buffered_at": datetime.now(UTC),
+        })
+
+    def _replay_orphan_logs(self, session: TraceSession) -> list[dict]:
+        """Replay buffered orphan logs that match the given session.
+
+        Returns the replayed log events for further processing (e.g., incremental
+        extraction, broadcasting).
+        """
+        cutoff = datetime.now(UTC) - self._orphan_log_max_age
+        remaining = []
+        replayed = []
+
+        for entry in self._orphan_logs:
+            if entry["buffered_at"] < cutoff:
+                continue
+
+            matched = (
+                entry["trace_id"] in session.trace_ids
+                or (
+                    entry["session_name"]
+                    and entry["session_name"] == session.session_id
+                )
+            )
+
+            if matched:
+                session.trace_ids.add(entry["trace_id"])
+                session.logs.append(entry["log_event"])
+                replayed.append(entry["log_event"])
+            else:
+                remaining.append(entry)
+
+        self._orphan_logs = remaining
+
+        if replayed:
+            logger.info(
+                "Replayed %d orphan logs into session %s",
+                len(replayed), session.session_id,
+            )
+
+        return replayed
+
+    async def get_or_create_otlp_session(
+        self, trace_id: str, metadata: dict
+    ) -> TraceSession:
+        """Get existing session for trace_id or create a new one (OTLP path).
+
+        Groups spans by session_name (from resource attributes), not by trace_id.
+        A single session can contain spans from multiple traces — this is common
+        with GenAI semconv instrumentation where each LLM call creates its own
+        independent trace.
+        """
+        session_name = metadata.get("session_name") or f"otlp-{trace_id[:12]}"
+        session_id = session_name
+
+        existing = self.sessions.get(session_id)
+        if existing and not existing.is_complete:
+            existing.trace_ids.add(trace_id)
+            return existing
+
+        if existing:
+            counter = 2
+            while f"{session_name}-{counter}" in self.sessions:
+                counter += 1
+            session_id = f"{session_name}-{counter}"
+
+        session = TraceSession(
+            session_id=session_id,
+            trace_id=trace_id,
+            eval_set_id=metadata.get("eval_set_id"),
+            metadata={
+                k: v for k, v in metadata.get("resource_attrs", {}).items()
+                if not k.startswith("agentevals.")
+            },
+            source="otlp",
+            trace_ids={trace_id},
+        )
+
+        self.sessions[session_id] = session
+        self.incremental_extractors[session_id] = IncrementalInvocationExtractor()
+
+        replayed = self._replay_orphan_logs(session)
+        extractor = self.incremental_extractors.get(session_id)
+        if extractor and replayed:
+            for log_event in replayed:
+                updates = extractor.process_log(log_event)
+                for update in updates:
+                    update["sessionId"] = session_id
+                    await self.broadcast_to_ui(update)
+
+        await self.broadcast_to_ui({
+            "type": "session_started",
+            "session": {
+                "sessionId": session_id,
+                "traceId": trace_id,
+                "evalSetId": metadata.get("eval_set_id"),
+                "metadata": session.metadata,
+                "startedAt": session.started_at.isoformat(),
+            },
+        })
+
+        logger.info("Auto-created OTLP session: %s (trace: %s)", session_id, trace_id)
+        return session
+
+    def schedule_session_completion(self, session_id: str) -> None:
+        """Schedule session completion after root span arrival.
+
+        Starts a 3-second grace period to allow late-arriving child spans
+        from the same OTLP batch to be included before finalizing.
+        """
+        if session_id in self._completion_timers:
+            self._completion_timers[session_id].cancel()
+
+        self._completion_timers[session_id] = asyncio.create_task(
+            self._delayed_complete(session_id, 3.0)
+        )
+
+    def reset_idle_timer(self, session_id: str) -> None:
+        """Reset the idle timeout for an OTLP session.
+
+        Fallback completion after 30 seconds of no new spans or logs.
+        Primary completion uses root span detection (3-second grace period),
+        which handles most cases. This idle timeout catches edge cases like
+        agent crashes or traces that never emit a root span.
+        """
+        if session_id in self._idle_timers:
+            self._idle_timers[session_id].cancel()
+
+        self._idle_timers[session_id] = asyncio.create_task(
+            self._delayed_complete(session_id, 30.0)
+        )
+
+    def schedule_log_reextraction(self, session_id: str) -> None:
+        """Schedule re-extraction of invocations after late-arriving logs.
+
+        Logs from BatchLogRecordProcessor may arrive after span-triggered
+        session completion. This debounces re-extraction so multiple log
+        batches are coalesced into a single re-extraction pass.
+        """
+        key = f"_reextract_{session_id}"
+        if key in self._completion_timers:
+            self._completion_timers[key].cancel()
+
+        self._completion_timers[key] = asyncio.create_task(
+            self._delayed_reextract(session_id, 2.0)
+        )
+
+    async def _delayed_complete(self, session_id: str, delay: float) -> None:
+        await asyncio.sleep(delay)
+        await self._complete_otlp_session(session_id)
+
+    async def _delayed_reextract(self, session_id: str, delay: float) -> None:
+        await asyncio.sleep(delay)
+        await self._reextract_with_logs(session_id)
+
+    def find_session_by_trace_id(self, trace_id: str) -> TraceSession | None:
+        """Find a session that contains the given trace_id.
+
+        Matches both active and recently-completed sessions so that
+        late-arriving logs can still be associated with their session.
+        """
+        for session in self.sessions.values():
+            if trace_id in session.trace_ids:
+                return session
+        return None
+
+    async def _reextract_with_logs(self, session_id: str) -> None:
+        """Re-extract invocations after late logs arrive for a completed session."""
+        session = self.sessions.get(session_id)
+        if not session:
+            return
+
+        key = f"_reextract_{session_id}"
+        if key in self._completion_timers:
+            del self._completion_timers[key]
+
+        logger.info(
+            "Re-extracting invocations with %d late logs for session %s",
+            len(session.logs), session_id,
+        )
+
+        invocations_data = await self._extract_invocations(session)
+
+        await self.broadcast_to_ui({
+            "type": "session_complete",
+            "sessionId": session_id,
+            "invocations": invocations_data,
+        })
+
+    async def _complete_otlp_session(self, session_id: str) -> None:
+        """Mark an OTLP session as complete and extract invocations.
+
+        Equivalent to the WebSocket 'session_end' handler. Idempotent — does
+        nothing if the session is already complete or missing.
+        """
+        session = self.sessions.get(session_id)
+        if not session or session.is_complete:
+            return
+
+        session.is_complete = True
+
+        if session_id in self._completion_timers:
+            self._completion_timers.pop(session_id).cancel()
+        if session_id in self._idle_timers:
+            self._idle_timers.pop(session_id).cancel()
+
+        logger.info(
+            "OTLP session complete: %s (%d spans, %d logs)",
+            session_id, len(session.spans), len(session.logs),
+        )
+
+        invocations_data = await self._extract_invocations(session)
+
+        await self.broadcast_to_ui({
+            "type": "session_complete",
+            "sessionId": session_id,
+            "invocations": invocations_data,
+        })
+
+        if session_id in self.incremental_extractors:
+            del self.incremental_extractors[session_id]
 
     async def handle_connection(self, websocket: WebSocket) -> None:
         """Handle WebSocket connection from an agent.
@@ -269,10 +521,6 @@ class StreamingTraceManager:
                 else:
                     logger.info("Client disconnected after session end: %s", session_id)
 
-    def _enrich_spans_with_logs(self, spans: list[dict], logs: list[dict], session_id: str = None) -> list[dict]:
-        """Enrich spans with message content from GenAI logs."""
-        return enrich_spans_with_logs(spans, logs, session_id)
-
     async def _save_spans_to_temp_file(self, session: TraceSession) -> Path:
         """Save spans to a temporary OTLP JSONL file.
 
@@ -284,7 +532,7 @@ class StreamingTraceManager:
         """
         temp_file = Path(tempfile.gettempdir()) / f"agentevals_{session.session_id}.jsonl"
 
-        enriched_spans = self._enrich_spans_with_logs(session.spans, session.logs, session.session_id)
+        enriched_spans = enrich_spans_with_logs(session.spans, session.logs, session.session_id)
 
         with open(temp_file, "w") as f:
             for span in enriched_spans:
@@ -331,7 +579,7 @@ class StreamingTraceManager:
                     session.session_id
                 )
 
-            enriched_spans = self._enrich_spans_with_logs(session.spans, session.logs, session.session_id)
+            enriched_spans = enrich_spans_with_logs(session.spans, session.logs, session.session_id)
 
             for span in enriched_spans:
                 span_copy = span.copy()

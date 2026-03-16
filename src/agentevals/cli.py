@@ -18,9 +18,6 @@ import sys
 import click
 
 from . import __version__
-from .config import EvalRunConfig
-from .output import format_results
-from .runner import run_evaluation
 
 
 @click.group()
@@ -97,6 +94,10 @@ def run(
     output: str,
 ) -> None:
     """Evaluate trace file(s) against specified metrics."""
+    from .config import EvalRunConfig
+    from .output import format_results
+    from .runner import run_evaluation
+
     config = EvalRunConfig(
         trace_files=list(trace_files),
         eval_set_file=eval_set,
@@ -154,6 +155,27 @@ def list_metrics() -> None:
         click.echo()
 
 
+def _link_server_shutdown(*servers) -> None:
+    """Link multiple uvicorn servers so a single SIGINT shuts down all of them.
+
+    Uvicorn installs per-server signal handlers; the last server's handler
+    overwrites earlier ones.  This replaces handle_exit on every server with
+    a shared callback that sets should_exit / force_exit on all of them.
+    """
+    import signal as _signal
+
+    def _shared_exit(sig, frame):
+        force = all(s.should_exit for s in servers)
+        for s in servers:
+            if force and sig == _signal.SIGINT:
+                s.force_exit = True
+            else:
+                s.should_exit = True
+
+    for s in servers:
+        s.handle_exit = _shared_exit
+
+
 @main.command("serve")
 @click.option(
     "--dev",
@@ -172,6 +194,11 @@ def list_metrics() -> None:
     help="Port to bind the server to.",
 )
 @click.option(
+    "--otlp-port",
+    default=4318,
+    help="Port for OTLP HTTP receiver (default: 4318, standard OTLP HTTP port).",
+)
+@click.option(
     "--eval-sets",
     type=click.Path(exists=True),
     default=None,
@@ -188,7 +215,7 @@ def list_metrics() -> None:
     count=True,
     help="Increase verbosity (-v for INFO, -vv for DEBUG).",
 )
-def serve(dev: bool, host: str, port: int, eval_sets: str | None, headless: bool, verbose: int) -> None:
+def serve(dev: bool, host: str, port: int, otlp_port: int, eval_sets: str | None, headless: bool, verbose: int) -> None:
     """Start the agentevals API server.
 
     Use --dev to enable live streaming mode for agent development.
@@ -212,11 +239,11 @@ def serve(dev: bool, host: str, port: int, eval_sets: str | None, headless: bool
     static_dir = Path(__file__).parent / "_static"
     has_ui = static_dir.is_dir() and (static_dir / "index.html").exists()
 
-    if dev or (has_ui and not headless):
-        os.environ["AGENTEVALS_LIVE"] = "1"
+    os.environ["AGENTEVALS_LIVE"] = "1"
 
     if dev:
         click.echo(f"agentevals dev server starting...")
+        click.echo(f"  OTLP HTTP: http://{host}:{otlp_port}  (OTEL_EXPORTER_OTLP_ENDPOINT default)")
         click.echo(f"  WebSocket: ws://{host}:{port}/ws/traces")
         click.echo(f"  API:       http://{host}:{port}/api")
         click.echo(f"  Web UI:    http://localhost:5173")
@@ -230,34 +257,82 @@ def serve(dev: bool, host: str, port: int, eval_sets: str | None, headless: bool
         click.echo()
 
         src_path = Path(__file__).parent.parent
-        uvicorn.run(
-            "agentevals.api.app:app",
-            host=host,
-            port=port,
-            reload=True,
-            reload_dirs=[str(src_path)],
-            log_level="info",
-        )
+
+        async def _run_dev_servers():
+            main_config = uvicorn.Config(
+                "agentevals.api.app:app",
+                host=host,
+                port=port,
+                reload=True,
+                reload_dirs=[str(src_path)],
+                log_level="info",
+            )
+            otlp_config = uvicorn.Config(
+                "agentevals.api.otlp_app:otlp_app",
+                host=host,
+                port=otlp_port,
+                reload=True,
+                reload_dirs=[str(src_path)],
+                log_level="info",
+            )
+            main_server = uvicorn.Server(main_config)
+            otlp_server = uvicorn.Server(otlp_config)
+            _link_server_shutdown(main_server, otlp_server)
+            await asyncio.gather(main_server.serve(), otlp_server.serve())
+
+        asyncio.run(_run_dev_servers())
     elif has_ui and not headless:
         click.echo(f"agentevals: http://{host}:{port}")
+        click.echo(f"  OTLP HTTP: http://{host}:{otlp_port}")
         click.echo()
-        uvicorn.run(
-            "agentevals.api.app:app",
-            host=host,
-            port=port,
-            reload=False,
-            log_level="warning",
-        )
+
+        async def _run_ui_servers():
+            main_config = uvicorn.Config(
+                "agentevals.api.app:app",
+                host=host,
+                port=port,
+                reload=False,
+                log_level="warning",
+            )
+            otlp_config = uvicorn.Config(
+                "agentevals.api.otlp_app:otlp_app",
+                host=host,
+                port=otlp_port,
+                reload=False,
+                log_level="warning",
+            )
+            main_server = uvicorn.Server(main_config)
+            otlp_server = uvicorn.Server(otlp_config)
+            _link_server_shutdown(main_server, otlp_server)
+            await asyncio.gather(main_server.serve(), otlp_server.serve())
+
+        asyncio.run(_run_ui_servers())
     else:
-        click.echo(f"agentevals API: http://{host}:{port}/api")
+        click.echo(f"agentevals API:  http://{host}:{port}/api")
+        click.echo(f"  OTLP HTTP: http://{host}:{otlp_port}")
         click.echo()
-        uvicorn.run(
-            "agentevals.api.app:app",
-            host=host,
-            port=port,
-            reload=False,
-            log_level="warning",
-        )
+
+        async def _run_headless_servers():
+            main_config = uvicorn.Config(
+                "agentevals.api.app:app",
+                host=host,
+                port=port,
+                reload=False,
+                log_level="warning",
+            )
+            otlp_config = uvicorn.Config(
+                "agentevals.api.otlp_app:otlp_app",
+                host=host,
+                port=otlp_port,
+                reload=False,
+                log_level="warning",
+            )
+            main_server = uvicorn.Server(main_config)
+            otlp_server = uvicorn.Server(otlp_config)
+            _link_server_shutdown(main_server, otlp_server)
+            await asyncio.gather(main_server.serve(), otlp_server.serve())
+
+        asyncio.run(_run_headless_servers())
 
 
 @main.command("mcp")

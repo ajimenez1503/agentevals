@@ -19,9 +19,11 @@ import pytest
 from agentevals.genai_converter import (
     ConversionResult,
     convert_genai_trace,
+    _deduplicate_invocations,
     _extract_user_text,
     _extract_assistant_text,
     _extract_tool_calls,
+    _trim_cumulative_output,
 )
 from agentevals.utils.genai_messages import parse_json_attr
 from agentevals.loader.base import Span, Trace
@@ -487,3 +489,480 @@ class TestConvertGenaiTrace:
 
         assert len(result.invocations) == 1
         assert len(result.warnings) == 0
+
+    def test_convert_per_span_enriched_multiple_llm_spans(self):
+        """Per-span enrichment (OTLP path): each span has only its own messages.
+
+        When each LLM root span has a single user message, each should become
+        a separate invocation (not collapsed into one multi-turn conversation).
+        """
+        span1 = _make_genai_llm_span(
+            "llm1",
+            input_messages=[{"role": "user", "content": "Question 1"}],
+            output_messages=[{"role": "assistant", "content": "Answer 1"}],
+        )
+        span2 = _make_genai_llm_span(
+            "llm2",
+            input_messages=[{"role": "user", "content": "Question 2"}],
+            output_messages=[{"role": "assistant", "content": "Answer 2"}],
+        )
+        span3 = _make_genai_llm_span(
+            "llm3",
+            input_messages=[{"role": "user", "content": "Question 3"}],
+            output_messages=[{"role": "assistant", "content": "Answer 3"}],
+        )
+
+        trace = Trace(
+            trace_id="test-trace",
+            root_spans=[span1, span2, span3],
+            all_spans=[span1, span2, span3],
+        )
+
+        result = convert_genai_trace(trace)
+
+        assert len(result.invocations) == 3
+        assert result.invocations[0].user_content.parts[0].text == "Question 1"
+        assert result.invocations[0].final_response.parts[0].text == "Answer 1"
+        assert result.invocations[1].user_content.parts[0].text == "Question 2"
+        assert result.invocations[1].final_response.parts[0].text == "Answer 2"
+        assert result.invocations[2].user_content.parts[0].text == "Question 3"
+        assert result.invocations[2].final_response.parts[0].text == "Answer 3"
+
+    def test_broadcast_enriched_still_produces_multiturn(self):
+        """Broadcast enrichment (WebSocket path): first span has all messages.
+
+        When the first span has accumulated message history (multiple user
+        messages), multi-turn extraction should still work correctly.
+        """
+        all_input = [
+            {"role": "user", "content": "Q1"},
+            {"role": "user", "content": "Q2"},
+        ]
+        all_output = [
+            {"role": "assistant", "content": "A1"},
+            {"role": "assistant", "content": "A2"},
+        ]
+
+        span1 = _make_genai_llm_span("llm1", input_messages=all_input, output_messages=all_output)
+        span2 = _make_genai_llm_span("llm2", input_messages=all_input, output_messages=all_output)
+
+        trace = Trace(
+            trace_id="test-trace",
+            root_spans=[span1, span2],
+            all_spans=[span1, span2],
+        )
+
+        result = convert_genai_trace(trace)
+
+        assert len(result.invocations) == 2
+        assert result.invocations[0].user_content.parts[0].text == "Q1"
+        assert result.invocations[0].final_response.parts[0].text == "A1"
+        assert result.invocations[1].user_content.parts[0].text == "Q2"
+        assert result.invocations[1].final_response.parts[0].text == "A2"
+
+    def test_cumulative_history_deduplication(self):
+        """OpenAI instrumentor logs full history per LLM call.
+
+        A tool-use loop produces multiple spans with the same user text:
+        - Span 1: user asks "Roll a die" → assistant responds with tool_call
+        - Span 2: user still "Roll a die" → assistant responds with final text
+        Both have the same latest user message, so they should deduplicate.
+        """
+        span1 = _make_genai_llm_span(
+            "llm1",
+            input_messages=[
+                {"role": "user", "content": "Roll a die"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "call_1", "function": {"name": "roll_die", "arguments": "{}"}}
+                ]},
+            ],
+        )
+        span2 = _make_genai_llm_span(
+            "llm2",
+            input_messages=[
+                {"role": "user", "content": "Roll a die"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "I rolled a 3!"},
+            ],
+        )
+
+        trace = Trace(
+            trace_id="test-trace",
+            root_spans=[span1, span2],
+            all_spans=[span1, span2],
+        )
+
+        result = convert_genai_trace(trace)
+
+        assert len(result.invocations) == 1
+        assert result.invocations[0].user_content.parts[0].text == "Roll a die"
+        assert result.invocations[0].final_response.parts[0].text == "I rolled a 3!"
+
+
+class TestExtractUserTextReversed:
+    """The _extract_user_text function should return the LAST user message."""
+
+    def test_returns_last_user_message(self):
+        span = _make_genai_llm_span(
+            "span1",
+            input_messages=[
+                {"role": "user", "content": "First question"},
+                {"role": "user", "content": "Second question"},
+                {"role": "user", "content": "Third question"},
+            ],
+        )
+        text = _extract_user_text(span)
+        assert text == "Third question"
+
+    def test_returns_last_user_message_with_interleaved_roles(self):
+        span = _make_genai_llm_span(
+            "span1",
+            input_messages=[
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi!"},
+                {"role": "user", "content": "How are you?"},
+            ],
+        )
+        text = _extract_user_text(span)
+        assert text == "How are you?"
+
+
+class TestDeduplicateInvocations:
+    """Tests for _deduplicate_invocations."""
+
+    def _make_invocation(self, user_text: str, response_text: str) -> "Invocation":
+        from google.genai import types as genai_types
+        from google.adk.evaluation.eval_case import Invocation
+        return Invocation(
+            invocation_id=f"inv-{user_text[:10]}",
+            user_content=genai_types.Content(
+                role="user",
+                parts=[genai_types.Part(text=user_text)],
+            ),
+            final_response=genai_types.Content(
+                role="model",
+                parts=[genai_types.Part(text=response_text)],
+            ),
+        )
+
+    def test_no_dedup_when_all_unique(self):
+        invocations = [
+            self._make_invocation("Q1", "A1"),
+            self._make_invocation("Q2", "A2"),
+            self._make_invocation("Q3", "A3"),
+        ]
+        result = _deduplicate_invocations(invocations)
+        assert len(result) == 3
+
+    def test_dedup_keeps_last_duplicate(self):
+        invocations = [
+            self._make_invocation("Roll a die", "tool_call"),
+            self._make_invocation("Roll a die", "I rolled a 3!"),
+        ]
+        result = _deduplicate_invocations(invocations)
+        assert len(result) == 1
+        assert result[0].final_response.parts[0].text == "I rolled a 3!"
+
+    def test_dedup_preserves_order(self):
+        invocations = [
+            self._make_invocation("Q1", "A1-intermediate"),
+            self._make_invocation("Q1", "A1-final"),
+            self._make_invocation("Q2", "A2-intermediate"),
+            self._make_invocation("Q2", "A2-final"),
+        ]
+        result = _deduplicate_invocations(invocations)
+        assert len(result) == 2
+        assert result[0].final_response.parts[0].text == "A1-final"
+        assert result[1].final_response.parts[0].text == "A2-final"
+
+    def test_single_invocation_no_change(self):
+        invocations = [self._make_invocation("Q1", "A1")]
+        result = _deduplicate_invocations(invocations)
+        assert len(result) == 1
+
+    def test_empty_list(self):
+        result = _deduplicate_invocations([])
+        assert result == []
+
+
+class TestTrimCumulativeOutput:
+    """Tests for _trim_cumulative_output — stripping historical tool calls."""
+
+    def test_single_user_message_no_trimming(self):
+        span = _make_genai_llm_span(
+            "span1",
+            input_messages=[{"role": "user", "content": "Hello"}],
+            output_messages=[
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "greet", "arguments": "{}"}}
+                ]},
+                {"role": "assistant", "content": "Hi!"},
+            ],
+        )
+        output = [
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "c1", "type": "function", "function": {"name": "greet", "arguments": "{}"}}
+            ]},
+            {"role": "assistant", "content": "Hi!"},
+        ]
+        result = _trim_cumulative_output(span, output)
+        assert result == output
+
+    def test_two_turns_strips_first_turn(self):
+        span = _make_genai_llm_span(
+            "span1",
+            input_messages=[
+                {"role": "user", "content": "Hi"},
+                {"role": "user", "content": "Roll a die"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "Hello!"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": "{}"}}
+                ]},
+                {"role": "assistant", "content": "I rolled a 3!"},
+            ],
+        )
+        output = [
+            {"role": "assistant", "content": "Hello!"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": "{}"}}
+            ]},
+            {"role": "assistant", "content": "I rolled a 3!"},
+        ]
+        result = _trim_cumulative_output(span, output)
+        assert len(result) == 2
+        assert result[0]["tool_calls"][0]["function"]["name"] == "roll_die"
+        assert result[1]["content"] == "I rolled a 3!"
+
+    def test_three_turns_strips_first_two(self):
+        """Matches the LangChain bug scenario: 3 user messages, output has tool calls
+        from all turns. Only the current turn's messages should remain."""
+        span = _make_genai_llm_span(
+            "span1",
+            input_messages=[
+                {"role": "user", "content": "Hi"},
+                {"role": "user", "content": "Roll a die"},
+                {"role": "user", "content": "Is it prime?"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "Hello!"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": '{"sides": 20}'}}
+                ]},
+                {"role": "assistant", "content": "I rolled a 3!"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c2", "type": "function", "function": {"name": "check_prime", "arguments": '{"nums": [3]}'}}
+                ]},
+                {"role": "assistant", "content": "Yes, 3 is prime!"},
+            ],
+        )
+        output = [
+            {"role": "assistant", "content": "Hello!"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": '{"sides": 20}'}}
+            ]},
+            {"role": "assistant", "content": "I rolled a 3!"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "c2", "type": "function", "function": {"name": "check_prime", "arguments": '{"nums": [3]}'}}
+            ]},
+            {"role": "assistant", "content": "Yes, 3 is prime!"},
+        ]
+        result = _trim_cumulative_output(span, output)
+        assert len(result) == 2
+        assert result[0]["tool_calls"][0]["function"]["name"] == "check_prime"
+        assert result[1]["content"] == "Yes, 3 is prime!"
+
+    def test_no_input_messages_no_trimming(self):
+        span = _make_genai_llm_span("span1", input_messages=None)
+        output = [{"role": "assistant", "content": "Hello"}]
+        result = _trim_cumulative_output(span, output)
+        assert result == output
+
+    def test_fewer_text_responses_than_expected_returns_full(self):
+        span = _make_genai_llm_span(
+            "span1",
+            input_messages=[
+                {"role": "user", "content": "Q1"},
+                {"role": "user", "content": "Q2"},
+                {"role": "user", "content": "Q3"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "A1"},
+            ],
+        )
+        output = [{"role": "assistant", "content": "A1"}]
+        result = _trim_cumulative_output(span, output)
+        assert result == output
+
+    def test_intermediate_span_with_stale_output(self):
+        """Intermediate tool-call span where output hasn't caught up yet.
+
+        Span 4 in the LangChain scenario: 3 user messages but output only has
+        2 text responses (from previous turns). Trimming yields empty list.
+        """
+        span = _make_genai_llm_span(
+            "span1",
+            input_messages=[
+                {"role": "user", "content": "Hi"},
+                {"role": "user", "content": "Roll a die"},
+                {"role": "user", "content": "Is it prime?"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "Hello!"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": "{}"}}
+                ]},
+                {"role": "assistant", "content": "I rolled a 3!"},
+            ],
+        )
+        output = [
+            {"role": "assistant", "content": "Hello!"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": "{}"}}
+            ]},
+            {"role": "assistant", "content": "I rolled a 3!"},
+        ]
+        result = _trim_cumulative_output(span, output)
+        assert len(result) == 0
+
+
+class TestCumulativeHistoryToolCalls:
+    """End-to-end tests for cumulative history tool call extraction.
+
+    Simulates the LangChain multi-trace pattern: each LLM call gets its own
+    trace with cumulative message history.
+    """
+
+    def test_langchain_three_turn_tool_calls(self):
+        """3-turn conversation: greeting, roll_die, check_prime.
+
+        Each span has cumulative output. After dedup, tool calls should only
+        include the current turn's tools.
+        """
+        span1 = _make_genai_llm_span(
+            "span1",
+            input_messages=[{"role": "user", "content": "Hi"}],
+            output_messages=[{"role": "assistant", "content": "Hello!"}],
+        )
+
+        span2_tc = _make_genai_llm_span(
+            "span2",
+            input_messages=[
+                {"role": "user", "content": "Hi"},
+                {"role": "user", "content": "Roll a die"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "Hello!"},
+            ],
+        )
+        span2_tc.start_time = 2000
+
+        span3_final = _make_genai_llm_span(
+            "span3",
+            input_messages=[
+                {"role": "user", "content": "Hi"},
+                {"role": "user", "content": "Roll a die"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "Hello!"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": '{"sides": 20}'}}
+                ]},
+                {"role": "assistant", "content": "I rolled a 3!"},
+            ],
+        )
+        span3_final.start_time = 3000
+
+        span4_tc = _make_genai_llm_span(
+            "span4",
+            input_messages=[
+                {"role": "user", "content": "Hi"},
+                {"role": "user", "content": "Roll a die"},
+                {"role": "user", "content": "Is it prime?"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "Hello!"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": '{"sides": 20}'}}
+                ]},
+                {"role": "assistant", "content": "I rolled a 3!"},
+            ],
+        )
+        span4_tc.start_time = 4000
+
+        span5_final = _make_genai_llm_span(
+            "span5",
+            input_messages=[
+                {"role": "user", "content": "Hi"},
+                {"role": "user", "content": "Roll a die"},
+                {"role": "user", "content": "Is it prime?"},
+            ],
+            output_messages=[
+                {"role": "assistant", "content": "Hello!"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "roll_die", "arguments": '{"sides": 20}'}}
+                ]},
+                {"role": "assistant", "content": "I rolled a 3!"},
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c2", "type": "function", "function": {"name": "check_prime", "arguments": '{"nums": [3]}'}}
+                ]},
+                {"role": "assistant", "content": "Yes, 3 is prime!"},
+            ],
+        )
+        span5_final.start_time = 5000
+
+        all_spans = [span1, span2_tc, span3_final, span4_tc, span5_final]
+        trace = Trace(
+            trace_id="test-trace",
+            root_spans=all_spans,
+            all_spans=all_spans,
+        )
+
+        result = convert_genai_trace(trace)
+
+        assert len(result.invocations) == 3
+
+        inv1 = result.invocations[0]
+        assert inv1.user_content.parts[0].text == "Hi"
+        assert len(inv1.intermediate_data.tool_uses) == 0
+
+        inv2 = result.invocations[1]
+        assert inv2.user_content.parts[0].text == "Roll a die"
+        tool_names_2 = [t.name for t in inv2.intermediate_data.tool_uses]
+        assert tool_names_2 == ["roll_die"]
+
+        inv3 = result.invocations[2]
+        assert inv3.user_content.parts[0].text == "Is it prime?"
+        tool_names_3 = [t.name for t in inv3.intermediate_data.tool_uses]
+        assert tool_names_3 == ["check_prime"], (
+            f"Expected only check_prime for turn 3, got {tool_names_3}"
+        )
+
+    def test_single_turn_with_tool_unaffected(self):
+        """Single-turn tool use should not be affected by cumulative trimming."""
+        span = _make_genai_llm_span(
+            "span1",
+            input_messages=[{"role": "user", "content": "What's the weather?"}],
+            output_messages=[
+                {"role": "assistant", "content": "", "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "get_weather", "arguments": '{"city": "NYC"}'}}
+                ]},
+                {"role": "assistant", "content": "It's 72F in NYC"},
+            ],
+        )
+
+        trace = Trace(
+            trace_id="test-trace",
+            root_spans=[span],
+            all_spans=[span],
+        )
+
+        result = convert_genai_trace(trace)
+
+        assert len(result.invocations) == 1
+        tool_names = [t.name for t in result.invocations[0].intermediate_data.tool_uses]
+        assert tool_names == ["get_weather"]

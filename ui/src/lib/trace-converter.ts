@@ -280,6 +280,49 @@ function extractToolTrajectory(
   return { toolUses, toolResponses };
 }
 
+function isBroadcastEnriched(span: Span): boolean {
+  const messagesAttr = getInputMessagesAttr(span);
+  if (!messagesAttr) return false;
+
+  const messages = safeJsonParse<any[]>(messagesAttr, []);
+  if (!Array.isArray(messages)) return false;
+
+  const userCount = messages.filter(
+    (m: any) => typeof m === 'object' && m !== null && USER_ROLES.includes(m.role)
+  ).length;
+  return userCount > 1;
+}
+
+function trimCumulativeOutput(span: Span, outputMessages: any[]): any[] {
+  const inputAttr = getInputMessagesAttr(span);
+  if (!inputAttr) return outputMessages;
+
+  const inputMessages = safeJsonParse<any[]>(inputAttr, []);
+  if (!Array.isArray(inputMessages)) return outputMessages;
+
+  const userCount = inputMessages.filter(
+    (m: any) => typeof m === 'object' && m !== null && USER_ROLES.includes(m.role)
+  ).length;
+  if (userCount <= 1) return outputMessages;
+
+  const previousTurns = userCount - 1;
+  let textResponsesSeen = 0;
+
+  for (let i = 0; i < outputMessages.length; i++) {
+    const msg = outputMessages[i];
+    if (typeof msg !== 'object' || !msg || !ASSISTANT_ROLES.includes(msg.role)) continue;
+    const content = extractTextFromGenAIMessage(msg);
+    if (content) {
+      textResponsesSeen++;
+      if (textResponsesSeen >= previousTurns) {
+        return outputMessages.slice(i + 1);
+      }
+    }
+  }
+
+  return outputMessages;
+}
+
 function isGenAIInvocationSpan(span: Span): boolean {
   const opLower = span.operationName.toLowerCase();
   return ['agent', 'chain', 'executor', 'workflow'].some(kw => opLower.includes(kw));
@@ -349,11 +392,11 @@ function convertGenAITrace(trace: Trace): ConversionResult {
     span.tags['gen_ai.request.model'] || span.tags['gen_ai.system']
   );
 
-  // Multi-turn extraction applies only to raw LLM spans whose message content accumulates
-  // across calls. Invocation spans (e.g. invoke_agent) each contain self-contained message
-  // histories and should each map to a separate invocation.
-  if (llmSpans.length > 1 && !llmRootSpans.some(isGenAIInvocationSpan)) {
-    console.log(`  Multi-turn conversation detected (${llmSpans.length} LLM spans)`);
+  // Multi-turn extraction applies only when message content is broadcast-enriched
+  // (every span has the full history). Per-span enriched traces (OTLP path) have
+  // each span with only its own messages — each should be a separate invocation.
+  if (llmSpans.length > 1 && !llmRootSpans.some(isGenAIInvocationSpan) && isBroadcastEnriched(llmSpans[0])) {
+    console.log(`  Multi-turn conversation detected (${llmSpans.length} LLM spans, broadcast-enriched)`);
     const multiTurnInvocations = convertGenAIMultiTurn(llmSpans, trace);
     invocations.push(...multiTurnInvocations);
   } else {
@@ -372,8 +415,35 @@ function convertGenAITrace(trace: Trace): ConversionResult {
     }
   }
 
-  console.log(`  Final invocations count: ${invocations.length}`);
-  return { invocations, warnings };
+  const deduplicated = deduplicateInvocations(invocations);
+  console.log(`  Final invocations count: ${deduplicated.length} (before dedup: ${invocations.length})`);
+  return { invocations: deduplicated, warnings };
+}
+
+function deduplicateInvocations(invocations: Invocation[]): Invocation[] {
+  if (invocations.length <= 1) return invocations;
+
+  const getUserText = (inv: Invocation): string =>
+    inv.userContent.parts
+      .filter(p => p.text)
+      .map(p => p.text)
+      .join(' ');
+
+  const seen = new Map<string, number>();
+  const alwaysKeep = new Set<number>();
+  invocations.forEach((inv, i) => {
+    const text = getUserText(inv);
+    if (!text.trim()) {
+      alwaysKeep.add(i);
+    } else {
+      seen.set(text, i);
+    }
+  });
+
+  if (seen.size + alwaysKeep.size === invocations.length) return invocations;
+
+  const keep = new Set([...alwaysKeep, ...seen.values()]);
+  return invocations.filter((_, i) => keep.has(i));
 }
 
 function convertGenAIMultiTurn(llmSpans: Span[], trace: Trace): Invocation[] {
@@ -625,8 +695,10 @@ function extractGenAIToolTrajectory(toolSpans: Span[], llmSpans: Span[]): { tool
     const completionAttr = getOutputMessagesAttr(llmSpan);
     if (!completionAttr) continue;
 
-    const messages = safeJsonParse<any[] | null>(completionAttr, null);
+    let messages = safeJsonParse<any[] | null>(completionAttr, null);
     if (!messages || !Array.isArray(messages)) continue;
+
+    messages = trimCumulativeOutput(llmSpan, messages);
 
     for (const msg of messages) {
       if (ASSISTANT_ROLES.includes(msg.role)) {
