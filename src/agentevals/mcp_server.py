@@ -100,7 +100,7 @@ def create_server(server_url: str | None = None) -> FastMCP:
             eval_set_file: Path to a golden eval set JSON for comparison metrics.
             judge_model: LLM model for judge-based metrics (e.g. "gemini-2.5-flash").
             threshold: Score threshold for PASS/FAIL classification (0.0–1.0).
-            eval_config_file: Path to an eval config YAML file with custom graders.
+            eval_config_file: Path to an eval config YAML file with custom evaluators.
         """
         if eval_config_file:
             from agentevals.eval_config_loader import load_eval_config, merge_configs

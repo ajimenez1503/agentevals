@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agentevals-grader-sdk"
+name = "agentevals-evaluator-sdk"
 version = "0.1.0"
-description = "Lightweight SDK for building custom agentevals graders"
+description = "Lightweight SDK for building custom agentevals evaluators"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
@@ -25,8 +25,8 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/agentevals-dev/agentevals"
-Repository = "https://github.com/agentevals-dev/agentevals/tree/main/packages/grader-sdk-py"
-Documentation = "https://github.com/agentevals-dev/agentevals/blob/main/docs/custom-graders.md"
+Repository = "https://github.com/agentevals-dev/agentevals/tree/main/packages/evaluator-sdk-py"
+Documentation = "https://github.com/agentevals-dev/agentevals/blob/main/docs/custom-evaluators.md"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agentevals_grader_sdk"]
+packages = ["src/agentevals_evaluator_sdk"]

@@ -19,8 +19,8 @@ from agentevals import __version__
 from ..builtin_metrics import METRICS_NEEDING_EXPECTED, METRICS_NEEDING_GCP, METRICS_NEEDING_LLM
 from ..config import (
     BuiltinMetricDef,
-    CodeGraderDef,
-    CustomGraderDef,
+    CodeEvaluatorDef,
+    CustomEvaluatorDef,
     EvalRunConfig,
 )
 from ..extraction import get_extractor
@@ -57,18 +57,18 @@ router = APIRouter()
 
 _TYPE_TO_MODEL = {
     "builtin": BuiltinMetricDef,
-    "code": CodeGraderDef,
+    "code": CodeEvaluatorDef,
 }
 
 
-def _parse_custom_graders(raw: list[dict]) -> list[CustomGraderDef]:
-    """Parse a list of custom grader dicts from the API config JSON."""
-    defs: list[CustomGraderDef] = []
+def _parse_custom_evaluators(raw: list[dict]) -> list[CustomEvaluatorDef]:
+    """Parse a list of custom evaluator dicts from the API config JSON."""
+    defs: list[CustomEvaluatorDef] = []
     for entry in raw:
-        grader_type = entry.get("type", "builtin")
-        model_cls = _TYPE_TO_MODEL.get(grader_type)
+        evaluator_type = entry.get("type", "builtin")
+        model_cls = _TYPE_TO_MODEL.get(evaluator_type)
         if not model_cls:
-            raise ValueError(f"Unknown custom grader type: {grader_type}")
+            raise ValueError(f"Unknown custom evaluator type: {evaluator_type}")
         defs.append(model_cls.model_validate(entry))
     return defs
 
@@ -111,14 +111,12 @@ async def list_metrics():
     }
 
     try:
-        # Try to load from ADK registry (like CLI does)
         from google.adk.evaluation.metric_evaluator_registry import (
             DEFAULT_METRIC_EVALUATOR_REGISTRY,
         )
 
         registry_metrics = DEFAULT_METRIC_EVALUATOR_REGISTRY.get_registered_metrics()
 
-        # Filter out per_turn_user_simulator_quality_v1 (not applicable to trace eval)
         metrics = []
         for m in registry_metrics:
             if m.metric_name == "per_turn_user_simulator_quality_v1":
@@ -351,19 +349,19 @@ async def evaluate_traces(
                 detail="Threshold must be between 0 and 1",
             )
 
-        custom_graders: list[CustomGraderDef] = []
-        raw_custom = config_dict.get("customGraders", config_dict.get("customMetrics", []))
+        custom_evaluators: list[CustomEvaluatorDef] = []
+        raw_custom = config_dict.get("customEvaluators", config_dict.get("customMetrics", []))
         if raw_custom:
             try:
-                custom_graders = _parse_custom_graders(raw_custom)
+                custom_evaluators = _parse_custom_evaluators(raw_custom)
             except Exception as exc:
-                raise HTTPException(status_code=400, detail=f"Invalid customGraders: {exc}")
+                raise HTTPException(status_code=400, detail=f"Invalid customEvaluators: {exc}")
 
         eval_config = EvalRunConfig(
             trace_files=trace_paths,
             eval_set_file=eval_set_path,
             metrics=metrics,
-            custom_graders=custom_graders,
+            custom_evaluators=custom_evaluators,
             trace_format=trace_format,
             judge_model=config_dict.get("judgeModel"),
             threshold=threshold,
@@ -458,20 +456,20 @@ async def evaluate_traces_stream(
                 yield f"data: {SSEErrorEvent(error='Threshold must be between 0 and 1').model_dump_json(by_alias=True)}\n\n"
                 return
 
-            custom_graders: list[CustomGraderDef] = []
-            raw_custom = config_dict.get("customGraders", config_dict.get("customMetrics", []))
+            custom_evaluators: list[CustomEvaluatorDef] = []
+            raw_custom = config_dict.get("customEvaluators", config_dict.get("customMetrics", []))
             if raw_custom:
                 try:
-                    custom_graders = _parse_custom_graders(raw_custom)
+                    custom_evaluators = _parse_custom_evaluators(raw_custom)
                 except Exception as exc:
-                    yield f"data: {SSEErrorEvent(error=f'Invalid customGraders: {exc}').model_dump_json(by_alias=True)}\n\n"
+                    yield f"data: {SSEErrorEvent(error=f'Invalid customEvaluators: {exc}').model_dump_json(by_alias=True)}\n\n"
                     return
 
             eval_config = EvalRunConfig(
                 trace_files=trace_paths,
                 eval_set_file=eval_set_path,
                 metrics=metrics,
-                custom_graders=custom_graders,
+                custom_evaluators=custom_evaluators,
                 trace_format=trace_format,
                 judge_model=config_dict.get("judgeModel"),
                 threshold=threshold,

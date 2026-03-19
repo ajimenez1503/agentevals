@@ -1,22 +1,23 @@
-"""Example custom grader: checks that every invocation has a non-empty response
+"""Example custom evaluator: checks that every invocation has a non-empty response
 and that responses don't just parrot back the user input.
 
-Install the SDK standalone:  pip install agentevals-grader-sdk
+Install the SDK standalone:  pip install agentevals-evaluator-sdk
 
 Usage in eval_config.yaml:
 
     metrics:
       - name: response_quality
         type: code
-        path: ./examples/custom_graders/response_quality.py
+        path: ./examples/custom_evaluators/response_quality.py
         threshold: 0.7
         config:
           min_response_length: 20
 """
 
-from agentevals_grader_sdk import grader, EvalInput, EvalResult
+from agentevals_evaluator_sdk import EvalInput, EvalResult, evaluator
 
-@grader
+
+@evaluator
 def response_quality(input: EvalInput) -> EvalResult:
     min_len = input.config.get("min_response_length", 10)
     scores: list[float] = []

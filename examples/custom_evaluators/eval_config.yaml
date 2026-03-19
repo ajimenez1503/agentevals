@@ -1,0 +1,33 @@
+# Example eval config using a custom code-based evaluator alongside built-in ones.
+#
+# Run with:
+#   agentevals run samples/helm.json \
+#     --config examples/custom_evaluators/eval_config.yaml \
+#     --eval-set samples/eval_set_helm.json
+
+metrics:
+  # Built-in metric (unchanged)
+  - tool_trajectory_avg_score
+
+  # Custom code evaluators (local scripts)
+  - name: tool_call_checker
+    type: code
+    path: ./examples/custom_evaluators/tool_call_checker.py
+    threshold: 1.0
+    config:
+      min_tool_calls: 1
+
+  - name: response_quality
+    type: code
+    path: ./examples/custom_evaluators/response_quality.py
+    threshold: 0.7
+    config:
+      min_response_length: 20
+
+  # reference an evaluator from Github
+  - name: peters_evaluator
+    type: remote
+    source: github
+    ref: evaluators/peters_evaluator/peters_evaluator.py
+    threshold: 0.110
+    executor: local

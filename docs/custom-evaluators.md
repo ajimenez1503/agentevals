@@ -1,43 +1,43 @@
-# Custom Graders
+# Custom Evaluators
 
-Custom graders let you score agent traces with your own logic. A grader is any program that reads `EvalInput` JSON from stdin and writes `EvalResult` JSON to stdout. This simple protocol means you can write graders in Python, JavaScript/TypeScript, or any language that can read/write JSON.
+Custom evaluators let you score agent traces with your own logic. An evaluator is any program that reads `EvalInput` JSON from stdin and writes `EvalResult` JSON to stdout. This simple protocol means you can write evaluators in Python, JavaScript/TypeScript, or any language that can read/write JSON.
 
 ## Quick Start
 
-### 1. Scaffold a grader
+### 1. Scaffold an evaluator
 
 ```bash
-agentevals grader init my_grader
+agentevals evaluator init my_evaluator
 ```
 
-This creates a directory with boilerplate code and a `grader.yaml` manifest:
+This creates a directory with boilerplate code and an `evaluator.yaml` manifest:
 
 ```
-my_grader/
-├── my_grader.py     # scoring logic (implement your checks here)
-└── grader.yaml      # metadata manifest
+my_evaluator/
+├── my_evaluator.py     # scoring logic (implement your checks here)
+└── evaluator.yaml      # metadata manifest
 ```
 
 You can also specify a language:
 
 ```bash
-agentevals grader init my_grader --runtime js    # JavaScript
-agentevals grader init my_grader.ts              # TypeScript (inferred from extension)
+agentevals evaluator init my_evaluator --runtime js    # JavaScript
+agentevals evaluator init my_evaluator.ts              # TypeScript (inferred from extension)
 ```
 
 ### 2. Install the SDK (Python only)
 
 ```bash
-pip install agentevals-grader-sdk
+pip install agentevals-evaluator-sdk
 ```
 
-### 3. Write a grader
+### 3. Write an evaluator
 
 ```python
-# graders/response_quality.py
-from agentevals_grader_sdk import grader, EvalInput, EvalResult
+# evaluators/response_quality.py
+from agentevals_evaluator_sdk import evaluator, EvalInput, EvalResult
 
-@grader
+@evaluator
 def response_quality(input: EvalInput) -> EvalResult:
     scores = []
     for inv in input.invocations:
@@ -54,7 +54,7 @@ def response_quality(input: EvalInput) -> EvalResult:
     )
 ```
 
-The `@grader` decorator handles all the stdin/stdout plumbing. Your function receives an `EvalInput` and returns an `EvalResult`.
+The `@evaluator` decorator handles all the stdin/stdout plumbing. Your function receives an `EvalInput` and returns an `EvalResult`.
 
 ### 3. Add it to your eval config
 
@@ -63,9 +63,9 @@ The `@grader` decorator handles all the stdin/stdout plumbing. Your function rec
 metrics:
   - tool_trajectory_avg_score   # built-in metric
 
-  - name: response_quality      # your custom grader
+  - name: response_quality      # your custom evaluator
     type: code
-    path: ./graders/response_quality.py
+    path: ./evaluators/response_quality.py
     threshold: 0.7
     config:
       min_length: 20
@@ -81,20 +81,20 @@ agentevals run traces/my_trace.json \
 
 ## Eval Config Reference
 
-Each custom grader entry in the `metrics` list uses the following fields:
+Each custom evaluator entry in the `metrics` list uses the following fields:
 
 | Field | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | | Unique name for the grader (used in output) |
+| `name` | yes | | Unique name for the evaluator (used in output) |
 | `type` | yes | | `code` for local code files |
-| `path` | yes | | Path to the grader file (`.py`, `.js`, or `.ts`) |
+| `path` | yes | | Path to the evaluator file (`.py`, `.js`, or `.ts`) |
 | `threshold` | no | `0.5` | Score at or above this value means PASSED |
 | `timeout` | no | `30` | Subprocess timeout in seconds |
-| `config` | no | `{}` | Arbitrary key-value pairs passed to the grader |
+| `config` | no | `{}` | Arbitrary key-value pairs passed to the evaluator |
 
 ## Protocol
 
-Every grader — regardless of language — communicates via the same JSON protocol over stdin/stdout.
+Every evaluator — regardless of language — communicates via the same JSON protocol over stdin/stdout.
 
 ### Input (`EvalInput`)
 
@@ -122,7 +122,7 @@ Every grader — regardless of language — communicates via the same JSON proto
 
 | Field | Type | Description |
 |---|---|---|
-| `metric_name` | string | Name of this grader |
+| `metric_name` | string | Name of this evaluator |
 | `threshold` | float | Pass/fail threshold |
 | `config` | object | User-provided config from the YAML |
 | `invocations` | array | Agent turns to evaluate |
@@ -156,14 +156,14 @@ Each invocation contains:
 | `per_invocation_scores` | no | Per-turn scores (same order as input invocations) |
 | `details` | no | Arbitrary metadata for debugging |
 
-## Writing Graders in Other Languages
+## Writing Evaluators in Other Languages
 
 You don't need the Python SDK. Any program that reads JSON from stdin and writes JSON to stdout works.
 
 ### JavaScript / TypeScript
 
 ```javascript
-// graders/tool_check.js
+// evaluators/tool_check.js
 const input = JSON.parse(require("fs").readFileSync("/dev/stdin", "utf8"));
 
 let score = 1.0;
@@ -182,7 +182,7 @@ console.log(JSON.stringify({
 ```yaml
 - name: tool_check
   type: code
-  path: ./graders/tool_check.js
+  path: ./evaluators/tool_check.js
 ```
 
 ### Any language
@@ -201,21 +201,21 @@ The file extension determines which interpreter is used:
 | `.py` | `python <file>` |
 | `.js`, `.ts` | `node <file>` |
 
-## Discovering Graders
+## Discovering Evaluators
 
-### List available graders
+### List available evaluators
 
 ```bash
-agentevals grader list                    # all sources
-agentevals grader list --source builtin   # only ADK built-in metrics
-agentevals grader list --source github    # only community graders
+agentevals evaluator list                    # all sources
+agentevals evaluator list --source builtin   # only ADK built-in metrics
+agentevals evaluator list --source github    # only community evaluators
 ```
 
-This shows graders from all registered sources: ADK built-in metrics and the community GitHub repository.
+This shows evaluators from all registered sources: ADK built-in metrics and the community GitHub repository.
 
-## Remote Graders
+## Remote Evaluators
 
-You can reference graders from the community repository directly in your eval config. They are downloaded and cached automatically on first use.
+You can reference evaluators from the community repository directly in your eval config. They are downloaded and cached automatically on first use.
 
 ```yaml
 metrics:
@@ -224,49 +224,49 @@ metrics:
   - name: response_quality
     type: remote
     source: github
-    ref: graders/response_quality/response_quality.py
+    ref: evaluators/response_quality/response_quality.py
     threshold: 0.7
 ```
 
 | Field | Required | Default | Description |
 |---|---|---|---|
-| `name` | yes | | Unique name for the grader (used in output) |
-| `type` | yes | | `remote` for graders fetched from a registry |
-| `source` | no | `github` | Grader source (`github`, or custom) |
+| `name` | yes | | Unique name for the evaluator (used in output) |
+| `type` | yes | | `remote` for evaluators fetched from a registry |
+| `source` | no | `github` | Evaluator source (`github`, or custom) |
 | `ref` | yes | | Path within the source (e.g. path in the GitHub repo) |
 | `threshold` | no | `0.5` | Score at or above this value means PASSED |
 | `timeout` | no | `30` | Subprocess timeout in seconds |
-| `config` | no | `{}` | Arbitrary key-value pairs passed to the grader |
+| `config` | no | `{}` | Arbitrary key-value pairs passed to the evaluator |
 | `executor` | no | `local` | Execution environment (`local` or `docker` in the future) |
 
-Remote graders are cached in `~/.cache/agentevals/graders/`. To force a re-download, delete the cached file.
+Remote evaluators are cached in `~/.cache/agentevals/evaluators/`. To force a re-download, delete the cached file.
 
 ### Configuring the GitHub source
 
-By default, graders are fetched from the official community repository. Override with environment variables:
+By default, evaluators are fetched from the official community repository. Override with environment variables:
 
 ```bash
-export AGENTEVALS_GRADER_REPO="your-org/your-graders-repo"
-export AGENTEVALS_GRADER_BRANCH="main"
+export AGENTEVALS_EVALUATOR_REPO="your-org/your-evaluators-repo"
+export AGENTEVALS_EVALUATOR_BRANCH="main"
 ```
 
-## Contributing Graders to the Community
+## Contributing Evaluators to the Community
 
-1. Scaffold a new grader:
+1. Scaffold a new evaluator:
 
 ```bash
-agentevals grader init my_grader
+agentevals evaluator init my_evaluator
 ```
 
-2. Implement your scoring logic and update the `grader.yaml` manifest with a description, tags, and your name.
+2. Implement your scoring logic and update the `evaluator.yaml` manifest with a description, tags, and your name.
 
-3. Copy the `my_grader/` directory into the `graders/` folder of the community repository and open a PR.
+3. Copy the `my_evaluator/` directory into the `evaluators/` folder of the community repository and open a PR.
 
-The community repo uses per-grader manifests. A CI workflow compiles all `graders/*/grader.yaml` files into a single `index.yaml` on merge, which is what `agentevals grader list` fetches.
+The community repo uses per-evaluator manifests. A CI workflow compiles all `evaluators/*/evaluator.yaml` files into a single `index.yaml` on merge, which is what `agentevals evaluator list` fetches.
 
 ## Architecture
 
-Custom graders use a layered architecture designed for extensibility.
+Custom evaluators use a layered architecture designed for extensibility.
 
 ```
 ┌─────────────────────────────────────────┐
@@ -276,21 +276,21 @@ Custom graders use a layered architecture designed for extensibility.
                │
                ▼
 ┌─────────────────────────────────────────┐
-│  GraderResolver                         │
+│  EvaluatorResolver                      │
 │  Downloads remote → local cache         │
 │  (passthrough for type: code)           │
 └──────────────┬──────────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────────┐
-│  CustomGraderEvaluator                  │
+│  CustomEvaluatorRunner                  │
 │  ADK Evaluator adapter                  │
 │  Invocation ↔ EvalInput/EvalResult      │
 └──────────────┬──────────────────────────┘
                │
                ▼
 ┌─────────────────────────────────────────┐
-│  GraderBackend (ABC) — executor factory │
+│  EvaluatorBackend (ABC) — executor factory │
 │  async run(EvalInput) → EvalResult      │
 ├─────────────────────────────────────────┤
 │  "local"  → SubprocessBackend           │
@@ -305,12 +305,12 @@ Custom graders use a layered architecture designed for extensibility.
 └─────────────────────────────────────────┘
 ```
 
-- **`GraderSource`** is the registry abstraction. Implementations (`BuiltinGraderSource`, `GitHubGraderSource`) list and fetch graders from different registries.
-- **`GraderResolver`** downloads remote graders and converts `RemoteGraderDef` to `CodeGraderDef` with a local cached path.
-- **`GraderBackend`** is the execution abstraction. The `executor` field in config selects which factory to use (`"local"` → `SubprocessBackend`). New executors (e.g. `DockerBackend`) register via `register_executor()`.
+- **`EvaluatorSource`** is the registry abstraction. Implementations (`BuiltinEvaluatorSource`, `GitHubEvaluatorSource`) list and fetch evaluators from different registries.
+- **`EvaluatorResolver`** downloads remote evaluators and converts `RemoteEvaluatorDef` to `CodeEvaluatorDef` with a local cached path.
+- **`EvaluatorBackend`** is the execution abstraction. The `executor` field in config selects which factory to use (`"local"` → `SubprocessBackend`). New executors (e.g. `DockerBackend`) register via `register_executor()`.
 - **`SubprocessBackend`** runs a local file as a child process, piping JSON over stdin/stdout.
 - **`Runtime`** is an internal detail of `SubprocessBackend` that maps file extensions to interpreter commands.
-- **`CustomGraderEvaluator`** adapts any `GraderBackend` into ADK's `Evaluator` interface, handling the conversion between ADK's `Invocation` objects and the simpler `EvalInput`/`EvalResult` protocol.
+- **`CustomEvaluatorRunner`** adapts any `EvaluatorBackend` into ADK's `Evaluator` interface, handling the conversion between ADK's `Invocation` objects and the simpler `EvalInput`/`EvalResult` protocol.
 
 ### Adding a new language runtime
 
@@ -348,7 +348,7 @@ To support a different execution environment (e.g., Docker), you need two things
 1. Implement the backend in `custom_evaluators.py`:
 
 ```python
-class DockerBackend(GraderBackend):
+class DockerBackend(EvaluatorBackend):
     def __init__(self, path: Path, timeout: int = 30):
         self._path = path
         self._timeout = timeout
@@ -370,35 +370,35 @@ Users then set `executor: docker` in their config:
 
 ```yaml
 metrics:
-  - name: untrusted_grader
+  - name: untrusted_evaluator
     type: code
-    path: ./graders/untrusted.py
+    path: ./evaluators/untrusted.py
     executor: docker
 ```
 
-### Adding a new grader source
+### Adding a new evaluator source
 
-To support a different grader registry (e.g., a custom API), implement `GraderSource`:
+To support a different evaluator registry (e.g., a custom API), implement `EvaluatorSource`:
 
 ```python
-from agentevals.grader.sources import GraderSource, GraderInfo, register_source
+from agentevals.evaluator.sources import EvaluatorSource, EvaluatorInfo, register_source
 
-class MyRegistrySource(GraderSource):
+class MyRegistrySource(EvaluatorSource):
     @property
     def source_name(self) -> str:
         return "my-registry"
 
-    async def list_graders(self) -> list[GraderInfo]: ...
-    async def fetch_grader(self, ref: str, dest: Path) -> Path: ...
+    async def list_evaluators(self) -> list[EvaluatorInfo]: ...
+    async def fetch_evaluator(self, ref: str, dest: Path) -> Path: ...
 
 register_source(MyRegistrySource())
 ```
 
-Users can then reference graders from the new source:
+Users can then reference evaluators from the new source:
 
 ```yaml
 metrics:
-  - name: my_grader
+  - name: my_evaluator
     type: remote
     source: my-registry
     ref: some/ref/path.py

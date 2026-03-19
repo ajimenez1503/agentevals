@@ -17,8 +17,8 @@ class BuiltinMetricDef(BaseModel):
     judge_model: str | None = None
 
 
-class BaseGraderDef(BaseModel):
-    """Shared fields for all executable grader definitions."""
+class BaseEvaluatorDef(BaseModel):
+    """Shared fields for all executable evaluator definitions."""
 
     name: str
     threshold: float = 0.5
@@ -27,11 +27,11 @@ class BaseGraderDef(BaseModel):
     executor: str = Field(default="local", description="Execution environment: 'local' or 'docker' (future).")
 
 
-class CodeGraderDef(BaseGraderDef):
-    """A grader implemented as an external code file (Python, JavaScript, etc.)."""
+class CodeEvaluatorDef(BaseEvaluatorDef):
+    """An evaluator implemented as an external code file (Python, JavaScript, etc.)."""
 
     type: Literal["code"] = "code"
-    path: str = Field(description="Path to the grader file (.py, .js, .ts, etc.).")
+    path: str = Field(description="Path to the evaluator file (.py, .js, .ts, etc.).")
 
     @field_validator("path")
     @classmethod
@@ -41,20 +41,20 @@ class CodeGraderDef(BaseGraderDef):
         suffix = Path(v).suffix.lower()
         allowed = supported_extensions()
         if suffix not in allowed:
-            raise ValueError(f"Unsupported grader file extension '{suffix}'. Supported: {sorted(allowed)}")
+            raise ValueError(f"Unsupported evaluator file extension '{suffix}'. Supported: {sorted(allowed)}")
         return v
 
 
-class RemoteGraderDef(BaseGraderDef):
-    """A grader fetched from a remote source (GitHub, registry, etc.)."""
+class RemoteEvaluatorDef(BaseEvaluatorDef):
+    """An evaluator fetched from a remote source (GitHub, registry, etc.)."""
 
     type: Literal["remote"] = "remote"
-    source: str = Field(default="github", description="Grader source (e.g. 'github').")
+    source: str = Field(default="github", description="Evaluator source (e.g. 'github').")
     ref: str = Field(description="Source-specific reference (e.g. path within the repo).")
 
 
-CustomGraderDef = Annotated[
-    BuiltinMetricDef | CodeGraderDef | RemoteGraderDef,
+CustomEvaluatorDef = Annotated[
+    BuiltinMetricDef | CodeEvaluatorDef | RemoteEvaluatorDef,
     Field(discriminator="type"),
 ]
 
@@ -72,9 +72,9 @@ class EvalRunConfig(BaseModel):
         description="List of built-in metric names to evaluate.",
     )
 
-    custom_graders: list[CustomGraderDef] = Field(
+    custom_evaluators: list[CustomEvaluatorDef] = Field(
         default_factory=list,
-        description="Custom grader definitions.",
+        description="Custom evaluator definitions.",
     )
 
     trace_format: str = Field(

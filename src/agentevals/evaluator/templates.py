@@ -1,4 +1,4 @@
-"""Grader scaffolding templates and the scaffold_grader function."""
+"""Evaluator scaffolding templates and the scaffold_evaluator function."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from string import Template
 import yaml
 
 PYTHON_TEMPLATE = Template('''\
-"""Custom grader: ${name}
+"""Custom evaluator: ${name}
 
 Usage in eval_config.yaml:
 
@@ -19,10 +19,10 @@ Usage in eval_config.yaml:
         threshold: 0.5
 """
 
-from agentevals_grader_sdk import grader, EvalInput, EvalResult
+from agentevals_evaluator_sdk import evaluator, EvalInput, EvalResult
 
 
-@grader
+@evaluator
 def ${name}(input: EvalInput) -> EvalResult:
     scores: list[float] = []
 
@@ -48,7 +48,7 @@ def ${name}(input: EvalInput) -> EvalResult:
 
 JAVASCRIPT_TEMPLATE = Template("""\
 /**
- * Custom grader: ${name}
+ * Custom evaluator: ${name}
  *
  * Usage in eval_config.yaml:
  *
@@ -89,7 +89,7 @@ console.log(JSON.stringify({
 
 TYPESCRIPT_TEMPLATE = Template("""\
 /**
- * Custom grader: ${name}
+ * Custom evaluator: ${name}
  *
  * Usage in eval_config.yaml:
  *
@@ -168,12 +168,12 @@ _EXT_TO_LANGUAGE: dict[str, str] = {
 }
 
 
-def scaffold_grader(
+def scaffold_evaluator(
     name: str,
     output_dir: Path | None = None,
     runtime: str | None = None,
 ) -> Path:
-    """Create a new grader directory with code file and grader.yaml manifest.
+    """Create a new evaluator directory with code file and evaluator.yaml manifest.
 
     Returns the path to the created directory.
     """
@@ -181,7 +181,7 @@ def scaffold_grader(
 
     raw_path = Path(name)
     suffix = raw_path.suffix.lower()
-    grader_name = raw_path.stem
+    evaluator_name = raw_path.stem
 
     if suffix and suffix in _EXTENSION_TO_TEMPLATE:
         ext = suffix
@@ -195,21 +195,21 @@ def scaffold_grader(
     template = _EXTENSION_TO_TEMPLATE[ext]
     language = _EXT_TO_LANGUAGE[ext]
 
-    grader_dir = output_dir / grader_name
-    grader_dir.mkdir(parents=True, exist_ok=True)
+    evaluator_dir = output_dir / evaluator_name
+    evaluator_dir.mkdir(parents=True, exist_ok=True)
 
-    code_file = grader_dir / f"{grader_name}{ext}"
-    code_file.write_text(template.substitute(name=grader_name), encoding="utf-8")
+    code_file = evaluator_dir / f"{evaluator_name}{ext}"
+    code_file.write_text(template.substitute(name=evaluator_name), encoding="utf-8")
 
     manifest = {
-        "name": grader_name,
-        "description": f"TODO: describe what {grader_name} evaluates",
+        "name": evaluator_name,
+        "description": f"TODO: describe what {evaluator_name} evaluates",
         "language": language,
-        "entrypoint": f"{grader_name}{ext}",
+        "entrypoint": f"{evaluator_name}{ext}",
         "tags": [],
         "author": "",
     }
-    manifest_file = grader_dir / "grader.yaml"
+    manifest_file = evaluator_dir / "evaluator.yaml"
     manifest_file.write_text(yaml.dump(manifest, sort_keys=False), encoding="utf-8")
 
-    return grader_dir
+    return evaluator_dir

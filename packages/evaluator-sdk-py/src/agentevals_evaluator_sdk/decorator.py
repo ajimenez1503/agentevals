@@ -1,4 +1,4 @@
-"""The ``@grader`` decorator — turns a function into a stdin/stdout grader script."""
+"""The ``@evaluator`` decorator — turns a function into a stdin/stdout evaluator script."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ from typing import Callable
 from .types import EvalInput, EvalResult
 
 
-def grader(fn: Callable[[EvalInput], EvalResult]) -> Callable[[EvalInput], EvalResult]:
-    """Decorator that turns a grader function into a runnable stdin/stdout script.
+def evaluator(fn: Callable[[EvalInput], EvalResult]) -> Callable[[EvalInput], EvalResult]:
+    """Decorator that turns an evaluator function into a runnable stdin/stdout script.
 
-    When the decorated module is executed (``python my_grader.py``), it:
+    When the decorated module is executed (``python my_evaluator.py``), it:
     1. Reads JSON from stdin and parses it into an :class:`EvalInput`.
     2. Calls the decorated function with the parsed input.
     3. Serializes the returned :class:`EvalResult` to stdout as JSON.
@@ -23,9 +23,9 @@ def grader(fn: Callable[[EvalInput], EvalResult]) -> Callable[[EvalInput], EvalR
 
     Example::
 
-        from agentevals_grader_sdk import grader, EvalInput, EvalResult
+        from agentevals_evaluator_sdk import evaluator, EvalInput, EvalResult
 
-        @grader
+        @evaluator
         def format_check(input: EvalInput) -> EvalResult:
             score = 1.0
             for inv in input.invocations:
@@ -52,12 +52,12 @@ def grader(fn: Callable[[EvalInput], EvalResult]) -> Callable[[EvalInput], EvalR
             else:
                 result = fn(eval_input)
         except Exception as exc:
-            _write_error(f"Grader function raised: {exc}\n{traceback.format_exc()}")
+            _write_error(f"Evaluator function raised: {exc}\n{traceback.format_exc()}")
             sys.exit(1)
 
         if not isinstance(result, EvalResult):
             _write_error(
-                f"Grader function must return EvalResult, got {type(result).__name__}"
+                f"Evaluator function must return EvalResult, got {type(result).__name__}"
             )
             sys.exit(1)
 

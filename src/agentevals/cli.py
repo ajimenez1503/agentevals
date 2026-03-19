@@ -149,10 +149,10 @@ def run(
 def list_metrics() -> None:
     """List all available evaluation metrics.
 
-    DEPRECATED: use ``agentevals grader list --source builtin`` instead.
+    DEPRECATED: use ``agentevals evaluator list --source builtin`` instead.
     """
     click.echo(
-        "Note: list-metrics is deprecated. Use 'agentevals grader list --source builtin' instead.\n",
+        "Note: list-metrics is deprecated. Use 'agentevals evaluator list --source builtin' instead.\n",
         err=True,
     )
     try:
@@ -187,23 +187,23 @@ def list_metrics() -> None:
 
 
 # ---------------------------------------------------------------------------
-# agentevals grader ...
+# agentevals evaluator ...
 # ---------------------------------------------------------------------------
 
 
 @main.group()
-def grader() -> None:
-    """Manage graders: scaffold, list, and discover."""
+def evaluator() -> None:
+    """Manage evaluators: scaffold, list, and discover."""
 
 
-@grader.command("init")
+@evaluator.command("init")
 @click.argument("name")
 @click.option(
     "--output-dir",
     "-o",
     type=click.Path(),
     default=".",
-    help="Parent directory for the new grader folder (default: current directory).",
+    help="Parent directory for the new evaluator folder (default: current directory).",
 )
 @click.option(
     "--runtime",
@@ -211,43 +211,43 @@ def grader() -> None:
     default=None,
     help="Language runtime: py, js, ts (default: inferred from name or py).",
 )
-def grader_init(name: str, output_dir: str, runtime: str | None) -> None:
-    """Scaffold a new grader with boilerplate code and a grader.yaml manifest.
+def evaluator_init(name: str, output_dir: str, runtime: str | None) -> None:
+    """Scaffold a new evaluator with boilerplate code and an evaluator.yaml manifest.
 
-    NAME is the grader name. If it ends with a recognized extension (.py, .js,
+    NAME is the evaluator name. If it ends with a recognized extension (.py, .js,
     .ts) the language is inferred automatically; otherwise use --runtime.
 
     \b
     Examples:
-      agentevals grader init my_grader
-      agentevals grader init my_grader.ts
-      agentevals grader init my_grader --runtime js
+      agentevals evaluator init my_evaluator
+      agentevals evaluator init my_evaluator.ts
+      agentevals evaluator init my_evaluator --runtime js
     """
     from pathlib import Path as _Path
 
-    from .grader.templates import scaffold_grader
+    from .evaluator.templates import scaffold_evaluator
 
     try:
-        grader_dir = scaffold_grader(name, output_dir=_Path(output_dir), runtime=runtime)
+        evaluator_dir = scaffold_evaluator(name, output_dir=_Path(output_dir), runtime=runtime)
     except (ValueError, OSError) as exc:
         raise click.ClickException(str(exc)) from exc
 
-    click.echo(f"Created grader in {grader_dir}/")
+    click.echo(f"Created evaluator in {evaluator_dir}/")
     click.echo()
     click.echo("Files:")
-    for f in sorted(grader_dir.iterdir()):
-        click.echo(f"  {f.relative_to(grader_dir.parent)}")
+    for f in sorted(evaluator_dir.iterdir()):
+        click.echo(f"  {f.relative_to(evaluator_dir.parent)}")
     click.echo()
     click.echo("Next steps:")
     click.echo("  1. Implement your scoring logic in the generated code file")
     click.echo("  2. Add it to your eval_config.yaml:")
     click.echo()
 
-    code_files = [f for f in grader_dir.iterdir() if f.suffix in (".py", ".js", ".ts")]
-    grader_name = grader_dir.name
+    code_files = [f for f in evaluator_dir.iterdir() if f.suffix in (".py", ".js", ".ts")]
+    evaluator_name = evaluator_dir.name
     if code_files:
-        rel = code_files[0].relative_to(grader_dir.parent)
-        click.echo(f"     - name: {grader_name}")
+        rel = code_files[0].relative_to(evaluator_dir.parent)
+        click.echo(f"     - name: {evaluator_name}")
         click.echo("       type: code")
         click.echo(f"       path: ./{rel}")
         click.echo("       threshold: 0.5")
@@ -255,8 +255,8 @@ def grader_init(name: str, output_dir: str, runtime: str | None) -> None:
     click.echo("  3. Run: agentevals run <trace_file> --config eval_config.yaml")
 
 
-@grader.command("runtimes")
-def grader_runtimes() -> None:
+@evaluator.command("runtimes")
+def evaluator_runtimes() -> None:
     """Show supported language runtimes and execution environments."""
     from .custom_evaluators import _EXECUTOR_FACTORIES, get_runtimes
 
@@ -273,13 +273,13 @@ def grader_runtimes() -> None:
     click.echo()
 
 
-@grader.command("list")
+@evaluator.command("list")
 @click.option(
     "--source",
     "-s",
     type=click.Choice(["all", "builtin", "github"]),
     default="all",
-    help="Filter graders by source (default: all).",
+    help="Filter evaluators by source (default: all).",
 )
 @click.option(
     "--refresh",
@@ -287,9 +287,9 @@ def grader_runtimes() -> None:
     default=False,
     help="Ignore cached results and fetch fresh data.",
 )
-def grader_list(source: str, refresh: bool) -> None:
-    """List available graders from all registered sources."""
-    from .grader.sources import _cache_dir, get_sources
+def evaluator_list(source: str, refresh: bool) -> None:
+    """List available evaluators from all registered sources."""
+    from .evaluator.sources import _cache_dir, get_sources
 
     if refresh:
         import shutil
@@ -302,16 +302,16 @@ def grader_list(source: str, refresh: bool) -> None:
     if source != "all":
         sources = [s for s in sources if s.source_name == source]
 
-    click.echo("  Fetching graders...", nl=False)
-    all_graders = asyncio.run(_collect_graders(sources))
+    click.echo("  Fetching evaluators...", nl=False)
+    all_evaluators = asyncio.run(_collect_evaluators(sources))
     click.echo("\r" + " " * 30 + "\r", nl=False)
 
-    if not all_graders:
-        click.echo("No graders found.")
+    if not all_evaluators:
+        click.echo("No evaluators found.")
         return
 
-    max_name = max(len(g.name) for g in all_graders)
-    max_src = max(len(g.source) for g in all_graders)
+    max_name = max(len(g.name) for g in all_evaluators)
+    max_src = max(len(g.source) for g in all_evaluators)
 
     try:
         term_width = os.get_terminal_size().columns
@@ -322,59 +322,59 @@ def grader_list(source: str, refresh: bool) -> None:
     click.echo(f"  {'NAME':<{max_name}}  {'SOURCE':<{max_src}}  DESCRIPTION")
     click.echo(f"  {'-' * max_name}  {'-' * max_src}  {'-' * min(40, desc_width)}")
 
-    for g in sorted(all_graders, key=lambda x: (x.source, x.name)):
+    for g in sorted(all_evaluators, key=lambda x: (x.source, x.name)):
         lang = f" [{g.language}]" if g.language else ""
         desc = g.description + lang
         if len(desc) > desc_width:
             desc = desc[: desc_width - 3] + "..."
         click.echo(f"  {g.name:<{max_name}}  {g.source:<{max_src}}  {desc}")
 
-    click.echo(f"\n  {len(all_graders)} grader(s) found.")
+    click.echo(f"\n  {len(all_evaluators)} evaluator(s) found.")
 
 
-async def _collect_graders(sources):
-    """Gather grader lists from all sources concurrently."""
+async def _collect_evaluators(sources):
+    """Gather evaluator lists from all sources concurrently."""
     import asyncio as _asyncio
 
-    from .grader.sources import GraderInfo
+    from .evaluator.sources import EvaluatorInfo
 
-    results: list[GraderInfo] = []
-    tasks = [s.list_graders() for s in sources]
-    for graders in await _asyncio.gather(*tasks, return_exceptions=True):
-        if isinstance(graders, BaseException):
-            click.echo(f"  Warning: failed to fetch from a source: {graders}", err=True)
+    results: list[EvaluatorInfo] = []
+    tasks = [s.list_evaluators() for s in sources]
+    for evaluators in await _asyncio.gather(*tasks, return_exceptions=True):
+        if isinstance(evaluators, BaseException):
+            click.echo(f"  Warning: failed to fetch from a source: {evaluators}", err=True)
             continue
-        results.extend(graders)
+        results.extend(evaluators)
     return results
 
 
-@grader.command("config")
+@evaluator.command("config")
 @click.argument("name")
 @click.option(
     "--path",
     "-p",
-    "grader_path",
+    "evaluator_path",
     default=None,
-    help="Path to the grader script (used for local code graders).",
+    help="Path to the evaluator script (used for local code evaluators).",
 )
 @click.option(
     "--threshold",
     "-t",
     type=float,
     default=None,
-    help="Score threshold (default: 0.5 for custom graders).",
+    help="Score threshold (default: 0.5 for custom evaluators).",
 )
-def grader_config(name: str, grader_path: str | None, threshold: float | None) -> None:
-    """Generate an eval_config.yaml snippet for a grader."""
+def evaluator_config(name: str, evaluator_path: str | None, threshold: float | None) -> None:
+    """Generate an eval_config.yaml snippet for an evaluator."""
     import yaml as _yaml
 
     from .builtin_metrics import METRICS_NEEDING_EXPECTED, METRICS_NEEDING_GCP, METRICS_NEEDING_LLM
-    from .grader.sources import get_sources
+    from .evaluator.sources import get_sources
 
     sources = get_sources()
-    all_graders = asyncio.run(_collect_graders(sources))
+    all_evaluators = asyncio.run(_collect_evaluators(sources))
 
-    match = next((g for g in all_graders if g.name == name), None)
+    match = next((g for g in all_evaluators if g.name == name), None)
 
     if match and match.source == "builtin":
         needs_eval_set = name in METRICS_NEEDING_EXPECTED
@@ -407,17 +407,17 @@ def grader_config(name: str, grader_path: str | None, threshold: float | None) -
             "name": name,
             "type": "remote",
             "source": match.source,
-            "ref": match.ref or f"graders/{name}",
+            "ref": match.ref or f"evaluators/{name}",
         }
         if threshold is not None:
             entry["threshold"] = threshold
         else:
             entry["threshold"] = 0.5
         entry["executor"] = "local"
-        snippet = {"custom_graders": [entry]}
-        comment = "# Add to your eval_config.yaml under 'custom_graders':"
+        snippet = {"custom_evaluators": [entry]}
+        comment = "# Add to your eval_config.yaml under 'custom_evaluators':"
     else:
-        path_val = grader_path or f"./{name}/{name}.py"
+        path_val = evaluator_path or f"./{name}/{name}.py"
         entry = {
             "name": name,
             "type": "code",
@@ -428,8 +428,8 @@ def grader_config(name: str, grader_path: str | None, threshold: float | None) -
         else:
             entry["threshold"] = 0.5
         entry["executor"] = "local"
-        snippet = {"custom_graders": [entry]}
-        comment = "# Add to your eval_config.yaml under 'custom_graders':"
+        snippet = {"custom_evaluators": [entry]}
+        comment = "# Add to your eval_config.yaml under 'custom_evaluators':"
 
     rendered = _yaml.dump(snippet, default_flow_style=False, sort_keys=False)
     click.echo(f"\n{comment}\n")

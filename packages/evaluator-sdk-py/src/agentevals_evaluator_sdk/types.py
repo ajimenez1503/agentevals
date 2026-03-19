@@ -1,7 +1,7 @@
-"""Subprocess protocol types for custom grader evaluation.
+"""Subprocess protocol types for custom evaluator evaluation.
 
 These types define the JSON stdin/stdout contract between agentevals and
-external grader scripts/containers.  They are intentionally simple and
+external evaluator scripts/containers.  They are intentionally simple and
 free of ADK-specific types so they can be used from any language.
 """
 
@@ -41,7 +41,7 @@ class InvocationData(BaseModel):
 
 
 class EvalInput(BaseModel):
-    """Input payload sent to a custom grader script/container on stdin."""
+    """Input payload sent to a custom evaluator script/container on stdin."""
 
     metric_name: str
     threshold: float = 0.5
@@ -51,7 +51,7 @@ class EvalInput(BaseModel):
 
 
 class EvalResult(BaseModel):
-    """Output payload expected from a custom grader script/container on stdout."""
+    """Output payload expected from a custom evaluator script/container on stdout."""
 
     score: float = Field(ge=0.0, le=1.0)
     status: Optional[str] = Field(

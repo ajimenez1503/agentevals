@@ -1,20 +1,20 @@
-"""Example custom grader: checks that every invocation made at least one tool call.
+"""Example custom evaluator: checks that every invocation made at least one tool call.
 
 Usage in eval_config.yaml:
 
     metrics:
       - name: tool_call_checker
         type: code
-        path: ./examples/custom_graders/tool_call_checker.py
+        path: ./examples/custom_evaluators/tool_call_checker.py
         threshold: 1.0
         config:
           min_tool_calls: 1
 """
 
-from agentevals_grader_sdk import grader, EvalInput, EvalResult
+from agentevals_evaluator_sdk import EvalInput, EvalResult, evaluator
 
 
-@grader
+@evaluator
 def tool_call_checker(input: EvalInput) -> EvalResult:
     min_calls = input.config.get("min_tool_calls", 1)
     scores: list[float] = []

@@ -15,7 +15,7 @@ from pydantic.alias_generators import to_camel
 
 from .builtin_metrics import evaluate_builtin_metric
 from .config import (
-    CustomGraderDef,
+    CustomEvaluatorDef,
     EvalRunConfig,
 )
 from .converter import ConversionResult, convert_traces
@@ -134,7 +134,7 @@ async def run_evaluation(
             return await _evaluate_trace(
                 conv_result=conv_result,
                 metrics=config.metrics,
-                custom_graders=config.custom_graders,
+                custom_evaluators=config.custom_evaluators,
                 eval_set=eval_set,
                 judge_model=config.judge_model,
                 threshold=config.threshold,
@@ -190,7 +190,7 @@ async def run_evaluation(
 async def _evaluate_trace(
     conv_result: ConversionResult,
     metrics: list[str],
-    custom_graders: list[CustomGraderDef],
+    custom_evaluators: list[CustomEvaluatorDef],
     eval_set: EvalSet | None,
     judge_model: str | None,
     threshold: float | None,
@@ -243,21 +243,21 @@ async def _evaluate_trace(
             )
         return await _append_result(result)
 
-    async def _eval_custom_with_semaphore(grader_def: CustomGraderDef) -> MetricResult:
+    async def _eval_custom_with_semaphore(evaluator_def: CustomEvaluatorDef) -> MetricResult:
         async with eval_semaphore:
             if progress_callback:
-                await progress_callback(f"Running {grader_def.name}...")
-            from .custom_evaluators import evaluate_custom_grader
+                await progress_callback(f"Running {evaluator_def.name}...")
+            from .custom_evaluators import evaluate_custom_evaluator
 
-            result = await evaluate_custom_grader(
-                grader_def=grader_def,
+            result = await evaluate_custom_evaluator(
+                evaluator_def=evaluator_def,
                 actual_invocations=actual_invocations,
                 expected_invocations=expected_invocations,
             )
         return await _append_result(result)
 
     tasks = [_eval_builtin_with_semaphore(m) for m in metrics]
-    tasks.extend(_eval_custom_with_semaphore(g) for g in custom_graders)
+    tasks.extend(_eval_custom_with_semaphore(g) for g in custom_evaluators)
 
     await asyncio.gather(*tasks)
 

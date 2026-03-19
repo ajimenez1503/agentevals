@@ -1,13 +1,13 @@
-"""agentevals-grader-sdk — lightweight types and helpers for custom grader authors.
+"""agentevals-evaluator-sdk — lightweight types and helpers for custom evaluator authors.
 
-Install standalone with ``pip install agentevals-grader-sdk`` (no heavy deps).
+Install standalone with ``pip install agentevals-evaluator-sdk`` (no heavy deps).
 
 Quick start::
 
-    from agentevals_grader_sdk import grader, EvalInput, EvalResult
+    from agentevals_evaluator_sdk import evaluator, EvalInput, EvalResult
 
-    @grader
-    def my_grader(input: EvalInput) -> EvalResult:
+    @evaluator
+    def my_evaluator(input: EvalInput) -> EvalResult:
         score = 1.0
         for inv in input.invocations:
             if not inv.final_response:
@@ -15,7 +15,7 @@ Quick start::
         return EvalResult(score=max(0.0, score))
 """
 
-from .decorator import grader
+from .decorator import evaluator
 from .types import (
     EvalInput,
     EvalResult,
@@ -25,7 +25,7 @@ from .types import (
 )
 
 __all__ = [
-    "grader",
+    "evaluator",
     "EvalInput",
     "EvalResult",
     "InvocationData",

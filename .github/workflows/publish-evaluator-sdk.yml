@@ -1,13 +1,13 @@
-name: Publish grader SDK
+name: Publish evaluator SDK
 
 on:
   push:
     tags:
-      - 'grader-sdk-v*'
+      - 'evaluator-sdk-v*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. grader-sdk-v0.1.0)'
+        description: 'Release tag (e.g. evaluator-sdk-v0.1.0)'
         required: true
 
 permissions:
@@ -26,10 +26,10 @@ jobs:
       - name: Verify tag matches pyproject.toml version
         run: |
           REF=${{ github.event.inputs.tag || github.ref_name }}
-          TOML_VERSION=$(grep '^version' packages/grader-sdk-py/pyproject.toml | cut -d'"' -f2)
-          TAG_VERSION=${REF#grader-sdk-v}
+          TOML_VERSION=$(grep '^version' packages/evaluator-sdk-py/pyproject.toml | cut -d'"' -f2)
+          TAG_VERSION=${REF#evaluator-sdk-v}
           if [ "$TOML_VERSION" != "$TAG_VERSION" ]; then
-            echo "Error: $REF does not match packages/grader-sdk-py/pyproject.toml version $TOML_VERSION"
+            echo "Error: $REF does not match packages/evaluator-sdk-py/pyproject.toml version $TOML_VERSION"
             exit 1
           fi
 
@@ -37,11 +37,11 @@ jobs:
         run: pip install build
 
       - name: Build wheel and sdist
-        run: python -m build packages/grader-sdk-py/ --outdir dist/
+        run: python -m build packages/evaluator-sdk-py/ --outdir dist/
 
       - uses: actions/upload-artifact@v7
         with:
-          name: grader-sdk-dist
+          name: evaluator-sdk-dist
           path: dist/
 
   publish:
@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: grader-sdk-dist
+          name: evaluator-sdk-dist
           path: dist/
 
       - uses: pypa/gh-action-pypi-publish@release/v1
