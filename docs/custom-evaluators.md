@@ -52,9 +52,12 @@ def response_quality(input: EvalInput) -> EvalResult:
         score=sum(scores) / len(scores) if scores else 0.0,
         per_invocation_scores=scores,
     )
+
+if __name__ == "__main__":
+    response_quality.run()
 ```
 
-The `@evaluator` decorator handles all the stdin/stdout plumbing. Your function receives an `EvalInput` and returns an `EvalResult`.
+The `@evaluator` decorator marks your function as an evaluator. Call `.run()` to execute it as a stdin/stdout script. Your function receives an `EvalInput` and returns an `EvalResult`. The decorated function can still be called directly in tests.
 
 ### 3. Add it to your eval config
 

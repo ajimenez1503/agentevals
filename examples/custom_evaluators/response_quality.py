@@ -55,3 +55,7 @@ def response_quality(input: EvalInput) -> EvalResult:
         per_invocation_scores=scores,
         details={"issues": issues} if issues else None,
     )
+
+
+if __name__ == "__main__":
+    response_quality.run()

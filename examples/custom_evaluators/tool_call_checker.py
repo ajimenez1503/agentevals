@@ -30,3 +30,7 @@ def tool_call_checker(input: EvalInput) -> EvalResult:
         score=overall,
         per_invocation_scores=scores,
     )
+
+
+if __name__ == "__main__":
+    tool_call_checker.run()

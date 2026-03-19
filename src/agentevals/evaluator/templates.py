@@ -43,6 +43,10 @@ def ${name}(input: EvalInput) -> EvalResult:
         score=overall,
         per_invocation_scores=scores,
     )
+
+
+if __name__ == "__main__":
+    ${name}.run()
 ''')
 
 

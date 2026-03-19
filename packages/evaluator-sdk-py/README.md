@@ -26,9 +26,12 @@ def my_evaluator(input: EvalInput) -> EvalResult:
         score=sum(scores) / len(scores) if scores else 0.0,
         per_invocation_scores=scores,
     )
+
+if __name__ == "__main__":
+    my_evaluator.run()
 ```
 
-The `@evaluator` decorator turns your function into a runnable script -- just execute it with `python my_evaluator.py`. It reads JSON from stdin, calls your function, and writes the result to stdout.
+The `@evaluator` decorator marks your function as a runnable evaluator. Call `.run()` to execute it as a stdin/stdout script -- it reads JSON from stdin, calls your function, and writes the result to stdout. The decorated function can still be called directly in tests.
 
 ## Types
 

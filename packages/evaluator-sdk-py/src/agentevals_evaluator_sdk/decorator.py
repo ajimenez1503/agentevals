@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import inspect
 import sys
 import traceback
@@ -12,16 +13,10 @@ from .types import EvalInput, EvalResult
 
 
 def evaluator(fn: Callable[[EvalInput], EvalResult]) -> Callable[[EvalInput], EvalResult]:
-    """Decorator that turns an evaluator function into a runnable stdin/stdout script.
+    """Decorator that marks a function as a runnable evaluator.
 
-    When the decorated module is executed (``python my_evaluator.py``), it:
-    1. Reads JSON from stdin and parses it into an :class:`EvalInput`.
-    2. Calls the decorated function with the parsed input.
-    3. Serializes the returned :class:`EvalResult` to stdout as JSON.
-
-    The decorated function can be sync or async.
-
-    Example::
+    The decorated function can still be called normally (e.g. in tests).
+    To run it as a stdin/stdout script, call ``.run()``::
 
         from agentevals_evaluator_sdk import evaluator, EvalInput, EvalResult
 
@@ -32,9 +27,17 @@ def evaluator(fn: Callable[[EvalInput], EvalResult]) -> Callable[[EvalInput], Ev
                 if not inv.final_response:
                     score -= 0.5
             return EvalResult(score=max(0.0, score))
+
+        if __name__ == "__main__":
+            format_check.run()
     """
 
-    def _run() -> None:
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        return fn(*args, **kwargs)
+
+    def run() -> None:
+        """Read EvalInput from stdin, call the evaluator, write EvalResult to stdout."""
         raw = sys.stdin.read()
         if not raw.strip():
             _write_error("No input received on stdin")
@@ -65,10 +68,8 @@ def evaluator(fn: Callable[[EvalInput], EvalResult]) -> Callable[[EvalInput], Ev
         sys.stdout.write("\n")
         sys.stdout.flush()
 
-    import atexit
-    atexit.register(_run)
-
-    return fn
+    wrapper.run = run
+    return wrapper
 
 
 def _write_error(msg: str) -> None:

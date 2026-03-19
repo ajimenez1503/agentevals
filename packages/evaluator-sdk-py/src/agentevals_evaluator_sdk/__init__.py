@@ -13,6 +13,9 @@ Quick start::
             if not inv.final_response:
                 score -= 0.5
         return EvalResult(score=max(0.0, score))
+
+    if __name__ == "__main__":
+        my_evaluator.run()
 """
 
 from .decorator import evaluator
