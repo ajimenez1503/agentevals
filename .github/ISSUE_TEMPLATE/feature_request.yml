@@ -29,3 +29,11 @@ body:
     attributes:
       label: Additional context
       description: Anything else (screenshots, links, examples, etc.).
+
+  - type: checkboxes
+    id: human-check
+    attributes:
+      label: Human confirmation
+      options:
+        - label: I am a human (not a bot, agent, or AI) filing this issue.
+          required: true

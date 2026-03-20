@@ -182,6 +182,14 @@ The extraction functions in `extraction.py` accept flat `dict[str, Any]` attribu
 
 Each example directory under `examples/` is self-contained with its own `requirements.txt`. The example needs to actually produce OTel spans. For OpenAI-based agents this means including `opentelemetry-instrumentation-openai-v2` in the requirements. Make sure all framework-specific OTel dependencies are listed in the example's `requirements.txt`.
 
+## Responsible AI Usage
+
+We welcome contributors who use AI tools to assist their work, but we ask that you use them responsibly:
+
+- **Do not generate issues, comments, or PR descriptions with AI.** These should be written by you in your own words. Maintainers need to communicate with the person behind the contribution, not a language model.
+- **Do not "vibe code."** AI should assist and accelerate code that you (the human!) would write on your own. You are expected to understand every line of code you submit. If you cannot explain a change during review, it will not be merged.
+- **Indicate non-trivial AI assistance.** If AI played a significant role in writing your code (beyond autocomplete or minor suggestions), mention it in your PR description. This helps reviewers calibrate their review.
+
 ## Getting Help
 
 - Open an [issue](https://github.com/agentevals-dev/agentevals/issues) for bugs or questions
