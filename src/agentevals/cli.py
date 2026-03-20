@@ -14,10 +14,41 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 
 import click
 
 from . import __version__
+
+
+def _relative_time(iso_str: str | None) -> str:
+    """Format an ISO 8601 timestamp as a human-readable relative time string."""
+    if not iso_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        delta = datetime.now(timezone.utc) - dt
+        seconds = int(delta.total_seconds())
+        if seconds < 0:
+            return "just now"
+        if seconds < 60:
+            return f"{seconds}s ago"
+        minutes = seconds // 60
+        if minutes < 60:
+            return f"{minutes}m ago"
+        hours = minutes // 60
+        if hours < 24:
+            return f"{hours}h ago"
+        days = hours // 24
+        if days < 30:
+            return f"{days}d ago"
+        months = days // 30
+        if months < 12:
+            return f"{months}mo ago"
+        years = days // 365
+        return f"{years}y ago"
+    except (ValueError, TypeError):
+        return ""
 
 
 @click.group()
@@ -314,21 +345,32 @@ def evaluator_list(source: str, refresh: bool) -> None:
     max_name = max(len(g.name) for g in all_evaluators)
     max_src = max(len(g.source) for g in all_evaluators)
 
+    has_updated = any(g.last_updated for g in all_evaluators)
+    updated_col_width = 10 if has_updated else 0
+
     try:
         term_width = os.get_terminal_size().columns
     except OSError:
         term_width = 120
-    desc_width = max(20, term_width - max_name - max_src - 8)
 
-    click.echo(f"  {'NAME':<{max_name}}  {'SOURCE':<{max_src}}  DESCRIPTION")
-    click.echo(f"  {'-' * max_name}  {'-' * max_src}  {'-' * min(40, desc_width)}")
+    overhead = max_name + max_src + 8
+    if has_updated:
+        overhead += updated_col_width + 2
+    desc_width = max(20, term_width - overhead)
+
+    hdr_updated = f"  {'UPDATED':<{updated_col_width}}" if has_updated else ""
+    sep_updated = f"  {'-' * updated_col_width}" if has_updated else ""
+
+    click.echo(f"  {'NAME':<{max_name}}  {'SOURCE':<{max_src}}{hdr_updated}  DESCRIPTION")
+    click.echo(f"  {'-' * max_name}  {'-' * max_src}{sep_updated}  {'-' * min(40, desc_width)}")
 
     for g in sorted(all_evaluators, key=lambda x: (x.source, x.name)):
         lang = f" [{g.language}]" if g.language else ""
         desc = g.description + lang
         if len(desc) > desc_width:
             desc = desc[: desc_width - 3] + "..."
-        click.echo(f"  {g.name:<{max_name}}  {g.source:<{max_src}}  {desc}")
+        col_updated = f"  {_relative_time(g.last_updated):<{updated_col_width}}" if has_updated else ""
+        click.echo(f"  {g.name:<{max_name}}  {g.source:<{max_src}}{col_updated}  {desc}")
 
     click.echo(f"\n  {len(all_evaluators)} evaluator(s) found.")
 

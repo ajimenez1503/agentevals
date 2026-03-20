@@ -30,6 +30,7 @@ class EvaluatorInfo:
     ref: str | None = None
     tags: list[str] = field(default_factory=list)
     author: str | None = None
+    last_updated: str | None = None
 
 
 class EvaluatorSource(abc.ABC):
@@ -200,6 +201,7 @@ class GitHubEvaluatorSource(EvaluatorSource):
                     ref=entry.get("path"),
                     tags=entry.get("tags", []),
                     author=entry.get("author"),
+                    last_updated=entry.get("lastUpdated"),
                 )
             )
         return infos
@@ -252,6 +254,7 @@ class FileEvaluatorSource(EvaluatorSource):
                     ref=entry.get("path"),
                     tags=entry.get("tags", []),
                     author=entry.get("author"),
+                    last_updated=entry.get("lastUpdated"),
                 )
             )
         return infos
