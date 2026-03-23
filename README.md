@@ -77,9 +77,6 @@ agentevals follows three simple steps:
 
 ## Contents
 
-- [What is agentevals?](#what-is-agentevals)
-- [Why agentevals?](#why-agentevals)
-- [How It Works](#how-it-works)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Integration](#integration)
