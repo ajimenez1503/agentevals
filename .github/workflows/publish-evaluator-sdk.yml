@@ -37,4 +37,4 @@ jobs:
           uv version $VERSION --package agentevals-evaluator-sdk
 
           uv build --package agentevals-evaluator-sdk
-          uv publish --token ${{ secrets.PYPI_TOKEN }
+          uv publish --token ${{ secrets.PYPI_TOKEN }}
