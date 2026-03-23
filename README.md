@@ -10,7 +10,7 @@
 
 <p align="center">
 Benchmark your agents before they hit production.<br>
-AgentEvals scores performance and inference quality from OpenTelemetry traces — no re-runs, no guesswork.
+agentevals scores performance and inference quality from OpenTelemetry traces — no re-runs, no guesswork.
 </p>
 
 <p align="center">
@@ -31,9 +31,9 @@ AgentEvals scores performance and inference quality from OpenTelemetry traces �
 
 ---
 
-## What is AgentEvals?
+## What is agentevals?
 
-AgentEvals is a framework-agnostic evaluation solution that scores AI agent behavior directly from [OpenTelemetry](https://opentelemetry.io/) traces. Record your agent's actions once, then evaluate as many times as you want — no re-runs, no guesswork.
+agentevals is a framework-agnostic evaluation solution that scores AI agent behavior directly from [OpenTelemetry](https://opentelemetry.io/) traces. Record your agent's actions once, then evaluate as many times as you want — no re-runs, no guesswork.
 
 It works with any OTel-instrumented framework (LangChain, Strands, Google ADK, and others), supports Jaeger JSON and OTLP trace formats, and ships with built-in evaluators, custom evaluator support, and LLM-based judges.
 
@@ -41,9 +41,9 @@ It works with any OTel-instrumented framework (LangChain, Strands, Google ADK, a
 - **Web UI** for visual inspection and local developer experience
 - **MCP server** so MCP clients can run evaluations from a conversation
 
-## Why AgentEvals?
+## Why agentevals?
 
-Most evaluation tools require you to **re-execute your agent** for every test — burning tokens, time, and money on duplicate LLM calls. AgentEvals takes a different approach:
+Most evaluation tools require you to **re-execute your agent** for every test — burning tokens, time, and money on duplicate LLM calls. agentevals takes a different approach:
 
 - **No re-execution** — score agents from existing traces without replaying expensive LLM calls
 - **Framework-agnostic** — works with any agent framework that emits OpenTelemetry spans
@@ -54,15 +54,15 @@ Most evaluation tools require you to **re-execute your agent** for every test �
 
 ## How It Works
 
-AgentEvals follows three simple steps:
+agentevals follows three simple steps:
 
-1. **Collect traces** — Instrument your agent with OpenTelemetry (or export Jaeger JSON). Point the OTLP exporter at the AgentEvals receiver, or load trace files directly.
+1. **Collect traces** — Instrument your agent with OpenTelemetry (or export Jaeger JSON). Point the OTLP exporter at the agentevals receiver, or load trace files directly.
 2. **Define eval sets** — Create golden evaluation sets that describe expected agent behavior: which tools should be called, in what order, and what the output should look like.
 3. **Run evaluations** — Use the CLI, Web UI, or MCP server to score traces against your eval sets. Get per-metric scores, pass/fail results, and detailed span-level breakdowns.
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
-│  Your Agent  │────▶│  OTel Traces │────▶│   AgentEvals     │
+│  Your Agent  │────▶│  OTel Traces │────▶│   agentevals     │
 │  (any framework)   │  (OTLP/Jaeger)     │  CLI · UI · MCP  │
 └─────────────┘     └──────────────┘     └──────────────────┘
                                                   │
@@ -77,8 +77,8 @@ AgentEvals follows three simple steps:
 
 ## Contents
 
-- [What is AgentEvals?](#what-is-agentevals)
-- [Why AgentEvals?](#why-agentevals)
+- [What is agentevals?](#what-is-agentevals)
+- [Why agentevals?](#why-agentevals)
 - [How It Works](#how-it-works)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
