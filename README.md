@@ -1,14 +1,65 @@
 <p align="center">
-  <img src="docs/assets/logo-color.png" alt="agentevals" width="420" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-color-on-transparent.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo-dark-on-transparent.svg">
+    <img src="docs/assets/logo-color-on-transparent.svg" alt="agentevals" width="420" />
+  </picture>
 </p>
 
-`agentevals` evaluates AI agent behavior from OpenTelemetry traces, without re-running the agent. Record once, score as many times as you want.
+<h1 align="center">Ship Agents Reliably</h1>
 
-Works with any OTel-instrumented framework (LangChain, Strands, Google ADK, and others). Supports Jaeger JSON and OTLP trace formats, built-in and custom evaluators, and LLM-based judges.
+<p align="center">
+Benchmark your agents before they hit production.<br>
+agentevals scores performance and inference quality from OpenTelemetry traces — no re-runs, no guesswork.
+</p>
+
+<p align="center">
+  <a href="https://github.com/agentevals-dev/agentevals/stargazers"><img src="https://img.shields.io/github/stars/agentevals-dev/agentevals?style=social" alt="GitHub Stars"></a>
+  &nbsp;
+  <a href="https://discord.gg/cpveEn8Ah2"><img src="https://img.shields.io/discord/1435836734666707190?label=Discord&logo=discord&logoColor=white&color=5865F2" alt="Discord"></a>
+  &nbsp;
+  <a href="https://github.com/agentevals-dev/agentevals/releases"><img src="https://img.shields.io/github/v/release/agentevals-dev/agentevals?label=Release" alt="Release"></a>
+  &nbsp;
+  <a href="https://github.com/agentevals-dev/agentevals/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-green.svg" alt="License"></a>
+  &nbsp;
+  <a href="https://pypi.org/project/agentevals-cli/"><img src="https://img.shields.io/pypi/v/agentevals-cli?label=PyPI&color=blue" alt="PyPI"></a>
+</p>
+
+<p align="center">
+  <a href="#installation">Install</a> · <a href="#quick-start">Quick Start</a> · <a href="https://github.com/agentevals-dev/agentevals/releases">Releases</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="https://discord.gg/cpveEn8Ah2">Discord</a>
+</p>
+
+---
+
+## What is agentevals?
+
+agentevals is a framework-agnostic evaluation solution that scores AI agent behavior directly from [OpenTelemetry](https://opentelemetry.io/) traces. Record your agent's actions once, then evaluate as many times as you want — no re-runs, no guesswork.
+
+It works with any OTel-instrumented framework (LangChain, Strands, Google ADK, and others), supports Jaeger JSON and OTLP trace formats, and ships with built-in evaluators, custom evaluator support, and LLM-based judges.
 
 - **CLI** for scripting and CI pipelines
 - **Web UI** for visual inspection and local developer experience
 - **MCP server** so MCP clients can run evaluations from a conversation
+
+## Why agentevals?
+
+Most evaluation tools require you to **re-execute your agent** for every test — burning tokens, time, and money on duplicate LLM calls. agentevals takes a different approach:
+
+- **No re-execution** — score agents from existing traces without replaying expensive LLM calls
+- **Framework-agnostic** — works with any agent framework that emits OpenTelemetry spans
+- **Golden eval sets** — compare actual behavior against defined expected behaviors for deterministic pass/fail gating
+- **Custom evaluators** — write scoring logic in Python, JavaScript, or any language
+- **CI/CD ready** — gate deployments on quality thresholds directly in your pipeline
+- **Local-first** — no cloud dependency required; everything runs on your machine
+
+## How It Works
+
+agentevals follows three simple steps:
+
+1. **Collect traces** — Instrument your agent with OpenTelemetry (or export traces from your tracing backend). Point the OTLP exporter at the agentevals receiver, or load trace files directly.
+2. **Define eval sets** — Create golden evaluation sets that describe expected agent behavior: which tools should be called, in what order, and what the output should look like.
+3. **Run evaluations** — Use the CLI, Web UI, or MCP server to score traces against your eval sets. Get per-metric scores, pass/fail results, and detailed span-level breakdowns.
+
 
 > [!IMPORTANT]
 > This project is under active development. Expect breaking changes.
