@@ -81,6 +81,9 @@ class Runtime(abc.ABC):
 
 
 class PythonRuntime(Runtime):
+    def __init__(self, python_path: Path | None = None):
+        self._exe = str(python_path) if python_path else sys.executable
+
     @property
     def name(self) -> str:
         return "Python"
@@ -90,13 +93,16 @@ class PythonRuntime(Runtime):
         return (".py",)
 
     def build_command(self, path: Path) -> list[str]:
-        return [sys.executable, str(path)]
+        return [self._exe, str(path)]
 
     def is_available(self) -> bool:
         return True
 
 
 class NodeRuntime(Runtime):
+    def __init__(self) -> None:
+        self._exe = shutil.which("node")
+
     @property
     def name(self) -> str:
         return "Node.js"
@@ -106,10 +112,12 @@ class NodeRuntime(Runtime):
         return (".js", ".ts")
 
     def build_command(self, path: Path) -> list[str]:
-        node = shutil.which("node")
-        if not node:
+        if not self._exe:
             raise RuntimeError("Node.js not found on PATH (required for .js/.ts evaluators)")
-        return [node, str(path)]
+        return [self._exe, str(path)]
+
+    def is_available(self) -> bool:
+        return self._exe is not None
 
 
 _RUNTIMES: list[Runtime] = [
@@ -203,12 +211,13 @@ class SubprocessBackend(EvaluatorBackend):
     """Runs a local code file (.py, .js, .ts, …) as a subprocess.
 
     The correct interpreter is resolved from the file extension via the
-    :data:`_RUNTIMES` registry.
+    :data:`_RUNTIMES` registry.  Pass a pre-configured *runtime* to override
+    the default (e.g. a :class:`PythonRuntime` with a venv interpreter).
     """
 
-    def __init__(self, path: Path, timeout: int = 30):
+    def __init__(self, path: Path, timeout: int = 30, runtime: Runtime | None = None):
         self._path = path.resolve()
-        self._runtime = _resolve_runtime(self._path)
+        self._runtime = runtime or _resolve_runtime(self._path)
         self._timeout = timeout
 
         if not self._path.exists():
@@ -223,7 +232,7 @@ class SubprocessBackend(EvaluatorBackend):
 # Executor factory
 # ---------------------------------------------------------------------------
 
-_EXECUTOR_FACTORIES: dict[str, Callable[[Path, int], EvaluatorBackend]] = {
+_EXECUTOR_FACTORIES: dict[str, Callable[..., EvaluatorBackend]] = {
     "local": lambda path, timeout: SubprocessBackend(path, timeout),
 }
 
@@ -236,7 +245,7 @@ def create_executor(executor_name: str, path: Path, timeout: int = 30) -> Evalua
     return factory(path, timeout)
 
 
-def register_executor(name: str, factory: Callable[[Path, int], EvaluatorBackend]) -> None:
+def register_executor(name: str, factory: Callable[..., EvaluatorBackend]) -> None:
     """Register a new executor factory (e.g. for Docker support)."""
     _EXECUTOR_FACTORIES[name] = factory
 
@@ -425,7 +434,27 @@ async def evaluate_custom_evaluator(
         evaluator_def = await get_default_resolver().resolve(evaluator_def)
 
     if isinstance(evaluator_def, CodeEvaluatorDef):
-        backend = create_executor(evaluator_def.executor, Path(evaluator_def.path), evaluator_def.timeout)
+        evaluator_path = Path(evaluator_def.path)
+
+        runtime: Runtime | None = None
+        if evaluator_path.suffix == ".py":
+            from .evaluator.venv import ensure_venv_async
+
+            try:
+                venv_python = await ensure_venv_async(evaluator_path)
+            except Exception as exc:
+                logger.error("Failed to set up venv for '%s': %s", evaluator_def.name, exc)
+                return MetricResult(
+                    metric_name=evaluator_def.name,
+                    error=f"Dependency installation failed: {exc}",
+                )
+            if venv_python:
+                runtime = PythonRuntime(python_path=venv_python)
+
+        if runtime is not None:
+            backend = SubprocessBackend(evaluator_path, evaluator_def.timeout, runtime=runtime)
+        else:
+            backend = create_executor(evaluator_def.executor, evaluator_path, evaluator_def.timeout)
     else:
         raise ValueError(f"Unsupported custom evaluator type: {type(evaluator_def).__name__}")
 
