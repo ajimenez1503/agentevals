@@ -64,7 +64,7 @@ def _install_deps(venv_dir: Path, requirements: Path, uv: str | None) -> None:
 
     subprocess.run(base + [sdk_spec], check=True, capture_output=True)
     logger.info("Installing dependencies from %s ...", requirements.name)
-    subprocess.run(base + ["-r", str(requirements)], check=True)
+    subprocess.run(base + ["-r", str(requirements)], check=True, capture_output=True)
 
 
 # ---------------------------------------------------------------------------

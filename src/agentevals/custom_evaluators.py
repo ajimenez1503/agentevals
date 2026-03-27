@@ -68,12 +68,8 @@ class Runtime(abc.ABC):
         """File extensions this runtime handles (e.g. ``(".py",)``)."""
 
     @abc.abstractmethod
-    def build_command(self, path: Path, python: Path | None = None) -> list[str]:
-        """Return the argv list to execute *path*.
-
-        For Python runtimes, *python* may point to a venv interpreter.
-        Non-Python runtimes ignore this parameter.
-        """
+    def build_command(self, path: Path) -> list[str]:
+        """Return the argv list to execute *path*."""
 
     def is_available(self) -> bool:
         """Return True if the runtime's interpreter is found on the system."""
@@ -85,6 +81,9 @@ class Runtime(abc.ABC):
 
 
 class PythonRuntime(Runtime):
+    def __init__(self, python_path: Path | None = None):
+        self._python_path = python_path
+
     @property
     def name(self) -> str:
         return "Python"
@@ -93,8 +92,8 @@ class PythonRuntime(Runtime):
     def extensions(self) -> tuple[str, ...]:
         return (".py",)
 
-    def build_command(self, path: Path, python: Path | None = None) -> list[str]:
-        exe = str(python) if python else sys.executable
+    def build_command(self, path: Path) -> list[str]:
+        exe = str(self._python_path) if self._python_path else sys.executable
         return [exe, str(path)]
 
     def is_available(self) -> bool:
@@ -110,7 +109,7 @@ class NodeRuntime(Runtime):
     def extensions(self) -> tuple[str, ...]:
         return (".js", ".ts")
 
-    def build_command(self, path: Path, python: Path | None = None) -> list[str]:
+    def build_command(self, path: Path) -> list[str]:
         node = shutil.which("node")
         if not node:
             raise RuntimeError("Node.js not found on PATH (required for .js/.ts evaluators)")
@@ -208,22 +207,20 @@ class SubprocessBackend(EvaluatorBackend):
     """Runs a local code file (.py, .js, .ts, …) as a subprocess.
 
     The correct interpreter is resolved from the file extension via the
-    :data:`_RUNTIMES` registry.  When *venv_python* is provided, Python
-    evaluators run inside that virtual environment instead of the host
-    interpreter.
+    :data:`_RUNTIMES` registry.  Pass a pre-configured *runtime* to override
+    the default (e.g. a :class:`PythonRuntime` with a venv interpreter).
     """
 
-    def __init__(self, path: Path, timeout: int = 30, venv_python: Path | None = None):
+    def __init__(self, path: Path, timeout: int = 30, runtime: Runtime | None = None):
         self._path = path.resolve()
-        self._runtime = _resolve_runtime(self._path)
+        self._runtime = runtime or _resolve_runtime(self._path)
         self._timeout = timeout
-        self._venv_python = venv_python
 
         if not self._path.exists():
             raise FileNotFoundError(f"Evaluator file not found: {self._path}")
 
     async def run(self, eval_input: EvalInput, metric_name: str) -> EvalResult:
-        cmd = self._runtime.build_command(self._path, self._venv_python)
+        cmd = self._runtime.build_command(self._path)
         return await _run_subprocess(cmd, eval_input.model_dump_json(), self._timeout, metric_name)
 
 
@@ -232,18 +229,18 @@ class SubprocessBackend(EvaluatorBackend):
 # ---------------------------------------------------------------------------
 
 _EXECUTOR_FACTORIES: dict[str, Callable[..., EvaluatorBackend]] = {
-    "local": lambda path, timeout, venv_python=None: SubprocessBackend(path, timeout, venv_python),
+    "local": lambda path, timeout, runtime=None: SubprocessBackend(path, timeout, runtime),
 }
 
 
 def create_executor(
-    executor_name: str, path: Path, timeout: int = 30, venv_python: Path | None = None
+    executor_name: str, path: Path, timeout: int = 30, runtime: Runtime | None = None
 ) -> EvaluatorBackend:
     """Construct an EvaluatorBackend by executor name (e.g. 'local', 'docker')."""
     factory = _EXECUTOR_FACTORIES.get(executor_name)
     if factory is None:
         raise ValueError(f"Unknown executor '{executor_name}'. Available: {sorted(_EXECUTOR_FACTORIES.keys())}")
-    return factory(path, timeout, venv_python)
+    return factory(path, timeout, runtime)
 
 
 def register_executor(name: str, factory: Callable[..., EvaluatorBackend]) -> None:
@@ -437,8 +434,7 @@ async def evaluate_custom_evaluator(
     if isinstance(evaluator_def, CodeEvaluatorDef):
         evaluator_path = Path(evaluator_def.path)
 
-        # Set up a venv if the evaluator ships a requirements.txt.
-        venv_python: Path | None = None
+        runtime: Runtime | None = None
         if evaluator_path.suffix == ".py":
             from .evaluator.venv import ensure_venv_async
 
@@ -450,10 +446,10 @@ async def evaluate_custom_evaluator(
                     metric_name=evaluator_def.name,
                     error=f"Dependency installation failed: {exc}",
                 )
+            if venv_python:
+                runtime = PythonRuntime(python_path=venv_python)
 
-        backend = create_executor(
-            evaluator_def.executor, evaluator_path, evaluator_def.timeout, venv_python=venv_python
-        )
+        backend = create_executor(evaluator_def.executor, evaluator_path, evaluator_def.timeout, runtime=runtime)
     else:
         raise ValueError(f"Unsupported custom evaluator type: {type(evaluator_def).__name__}")
 
