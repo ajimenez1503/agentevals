@@ -29,6 +29,9 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
+      - name: Set version from tag
+        run: uv version "${{ github.event.inputs.tag || github.ref_name }}" --package agentevals-cli
+
       - name: Build core and bundled wheels
         run: make release
 
