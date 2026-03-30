@@ -17,9 +17,9 @@ def _format_duration(ms: float | None) -> str:
     seconds = ms / 1000
     if seconds < 60:
         return f"{seconds:.1f}s"
-    minutes = int(seconds // 60)
-    remaining = seconds - minutes * 60
-    return f"{minutes}m {remaining:.0f}s"
+    total_secs = round(seconds)
+    minutes, secs = divmod(total_secs, 60)
+    return f"{minutes}m {secs}s"
 
 
 def format_results(run_result: RunResult, fmt: str = "table") -> str:

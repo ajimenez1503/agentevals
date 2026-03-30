@@ -29,6 +29,9 @@ class TestFormatDuration:
     def test_rounding_boundary(self):
         assert _format_duration(999.5) == "1.0s"
 
+    def test_minutes_no_60s(self):
+        assert _format_duration(119500) == "2m 0s"
+
 
 class TestTableFormatTiming:
     def _make_result(self, duration_ms: float | None = None) -> RunResult:
