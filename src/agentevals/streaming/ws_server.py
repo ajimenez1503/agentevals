@@ -212,18 +212,24 @@ class StreamingTraceManager:
     async def get_or_create_otlp_session(self, trace_id: str, metadata: dict) -> TraceSession:
         """Get existing session for trace_id or create a new one (OTLP path).
 
-        Groups spans by session_name (from resource attributes), not by trace_id.
+        Groups spans by session_name (from resource attributes) or
+        gen_ai.conversation.id (OTel semconv), not by trace_id.
         A single session can contain spans from multiple traces — this is common
         with GenAI semconv instrumentation where each LLM call creates its own
-        independent trace.
+        independent trace, and with multi-turn agent conversations where each
+        turn produces a separate trace sharing the same conversation ID.
         """
-        session_name = metadata.get("session_name") or f"otlp-{trace_id[:12]}"
+        conversation_id = metadata.get("conversation_id")
+        session_name = metadata.get("session_name") or conversation_id or f"otlp-{trace_id[:12]}"
 
         active_id = self._active_session_for_name.get(session_name)
         if active_id:
             active = self.sessions.get(active_id)
             if active and not active.is_complete:
                 active.trace_ids.add(trace_id)
+                return active
+            if active and active.is_complete and conversation_id:
+                self._reopen_session(active, trace_id, session_name)
                 return active
 
         existing = self.find_session_by_trace_id(trace_id)

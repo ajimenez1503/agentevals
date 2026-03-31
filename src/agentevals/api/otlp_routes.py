@@ -26,6 +26,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 
 from ..extraction import flatten_otlp_attributes
 from ..trace_attrs import (
+    OTEL_GENAI_CONVERSATION_ID,
     OTEL_GENAI_INPUT_MESSAGES,
     OTEL_GENAI_OUTPUT_MESSAGES,
     OTEL_SCOPE,
@@ -106,6 +107,11 @@ async def _process_traces(body: dict, manager: StreamingTraceManager) -> None:
 
                 if not trace_id:
                     continue
+
+                if not metadata.get("conversation_id"):
+                    conversation_id = _extract_conversation_id(span.get("attributes", []))
+                    if conversation_id:
+                        metadata["conversation_id"] = conversation_id
 
                 session = await manager.get_or_create_otlp_session(trace_id, metadata)
 
@@ -250,6 +256,14 @@ def _extract_agentevals_metadata(resource_attrs: list[dict]) -> dict:
         "service_name": flat.get("service.name"),
         "resource_attrs": flat,
     }
+
+
+def _extract_conversation_id(attrs_list: list[dict]) -> str | None:
+    """Extract gen_ai.conversation.id from OTLP span attributes."""
+    for attr in attrs_list:
+        if attr.get("key") == OTEL_GENAI_CONVERSATION_ID:
+            return attr.get("value", {}).get("stringValue")
+    return None
 
 
 def _convert_otlp_log_record(log_record: dict) -> dict | None:
