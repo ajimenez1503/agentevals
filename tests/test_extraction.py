@@ -194,6 +194,17 @@ class TestExtractAgentResponse:
         attrs = {ADK_LLM_RESPONSE: json.dumps({"content": {"parts": [{"function_call": {"name": "tool"}}]}})}
         assert extract_agent_response_from_attrs(attrs) is None
 
+    def test_genai_prefers_last_assistant(self):
+        attrs = {
+            OTEL_GENAI_OUTPUT_MESSAGES: json.dumps(
+                [
+                    {"role": "assistant", "content": "First response"},
+                    {"role": "assistant", "content": "Second response"},
+                ]
+            )
+        }
+        assert extract_agent_response_from_attrs(attrs) == "Second response"
+
 
 # ---------------------------------------------------------------------------
 # extract_token_usage_from_attrs

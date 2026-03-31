@@ -317,7 +317,9 @@ def _extract_user_text(llm_span: Span) -> str:
     text = extract_user_text_from_attrs(llm_span.tags)
     if text:
         return text
-    raise ValueError(f"LLM span {llm_span.span_id}: no user message found in span attributes")
+    raise ValueError(
+        f"LLM span {llm_span.span_id}: no user message found (checked gen_ai.input.messages and ADK llm_request)"
+    )
 
 
 def _extract_assistant_text(llm_span: Span) -> str:

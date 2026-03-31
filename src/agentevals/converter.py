@@ -157,7 +157,7 @@ def _walk(span: Span, op_prefix: str, acc: list[Span]) -> None:
 
 
 def _extract_user_content(first_call_llm: Span) -> genai_types.Content:
-    """Extract user input from the first call_llm span's llm_request tag."""
+    """Extract user input from the first call_llm span's attributes via shared extractor."""
     text = extract_user_text_from_attrs(first_call_llm.tags)
     if text:
         return genai_types.Content(
@@ -173,7 +173,7 @@ def _extract_user_content(first_call_llm: Span) -> genai_types.Content:
 
 
 def _extract_final_response(last_call_llm: Span) -> genai_types.Content:
-    """Extract final text response from the last call_llm span's llm_response tag."""
+    """Extract final text response from the last call_llm span's attributes via shared extractor."""
     text = extract_agent_response_from_attrs(last_call_llm.tags)
     if text:
         return genai_types.Content(
