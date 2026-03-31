@@ -1,0 +1,153 @@
+# ==============================================================================
+# Global
+# ==============================================================================
+
+# -- Number of replicas. Only 1 is supported (no shared job state across pods).
+replicaCount: 1
+
+# -- Global container image registry (prepended to image.repository)
+registry: ghcr.io
+
+# -- Global image tag override (defaults to Chart.appVersion)
+tag: ""
+
+# -- Global image pull policy
+imagePullPolicy: IfNotPresent
+
+# -- Image pull secrets
+imagePullSecrets: []
+
+# -- Override the chart name
+nameOverride: ""
+
+# -- Override the full resource name
+fullnameOverride: ""
+
+# -- Override the release namespace
+namespaceOverride: ""
+
+# ==============================================================================
+# Image
+# ==============================================================================
+
+image:
+  # -- Container image registry (overrides global registry)
+  registry: ""
+  # -- Container image repository (org/name, without registry prefix)
+  repository: agentevals-dev/agentevals
+  # -- Container image tag (defaults to global tag, then Chart.appVersion)
+  tag: ""
+  # -- Container image pull policy (defaults to global imagePullPolicy)
+  pullPolicy: ""
+
+# ==============================================================================
+# Service Account
+# ==============================================================================
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: false
+  # -- Automount the service account token
+  automount: true
+  # -- ServiceAccount annotations
+  annotations: {}
+  # -- ServiceAccount name override
+  name: ""
+
+# ==============================================================================
+# Pod
+# ==============================================================================
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Additional pod labels
+podLabels: {}
+
+# -- Pod security context
+podSecurityContext:
+  fsGroup: 1000
+
+# -- Container security context.
+# When ephemeralVolume.enabled is true, emptyDir at /tmp keeps the root
+# filesystem read-only safely. When ephemeralVolume.enabled is false the chart
+# forces readOnlyRootFilesystem to false so /tmp stays writable.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# ==============================================================================
+# Ephemeral Volume
+# ==============================================================================
+
+# -- Writable scratch space at /tmp (trace uploads, MCP temp files, streaming
+# JSONL). HOME is set to /tmp/agentevals-home so Path.home()/.cache stays
+# writable. When disabled the chart sets readOnlyRootFilesystem to false.
+ephemeralVolume:
+  # -- Enable emptyDir mount at /tmp
+  enabled: true
+  # -- Size limit for the emptyDir (Kubernetes 1.22+), e.g. "2Gi"
+  sizeLimit: ""
+  # -- Use "Memory" for tmpfs (faster, counts against memory limits); leave "" for node disk
+  medium: ""
+
+# ==============================================================================
+# Service
+# ==============================================================================
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- UI / API HTTP port
+  http:
+    port: 8001
+    containerPort: 8001
+  # -- OTLP HTTP receiver port
+  otlpHttp:
+    port: 4318
+    containerPort: 4318
+  # -- MCP (Streamable HTTP) port
+  mcp:
+    port: 8080
+    containerPort: 8080
+
+# ==============================================================================
+# Resources
+# ==============================================================================
+
+# -- Container resource requests and limits
+resources: {}
+
+# ==============================================================================
+# Scheduling
+# ==============================================================================
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# ==============================================================================
+# Overrides
+# ==============================================================================
+
+# -- Override the image entrypoint
+command: []
+
+# -- Override the image arguments
+args: []
+
+# -- Extra environment variables appended to the container env block
+env: []
+
+# -- Extra envFrom sources (ConfigMapRef, SecretRef)
+envFrom: []
