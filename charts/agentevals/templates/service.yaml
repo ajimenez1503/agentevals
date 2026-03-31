@@ -2,21 +2,22 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "agentevals.fullname" . }}
+  namespace: {{ include "agentevals.namespace" . }}
   labels:
     {{- include "agentevals.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
     - name: http
-      port: {{ .Values.service.uiPort }}
+      port: {{ .Values.service.http.port }}
       targetPort: http
       protocol: TCP
     - name: otlp-http
-      port: {{ .Values.service.otlpPort }}
+      port: {{ .Values.service.otlpHttp.port }}
       targetPort: otlp-http
       protocol: TCP
     - name: mcp
-      port: {{ .Values.service.mcpPort }}
+      port: {{ .Values.service.mcp.port }}
       targetPort: mcp
       protocol: TCP
   selector:

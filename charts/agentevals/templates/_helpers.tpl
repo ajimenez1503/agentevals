@@ -15,8 +15,22 @@
 {{- end }}
 {{- end }}
 
+{{- define "agentevals.namespace" -}}
+{{- default .Release.Namespace .Values.namespaceOverride }}
+{{- end }}
+
 {{- define "agentevals.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "agentevals.image" -}}
+{{- $registry := .Values.image.registry | default .Values.registry -}}
+{{- $tag := .Values.image.tag | default .Values.tag | default .Chart.AppVersion -}}
+{{- if $registry -}}
+{{- printf "%s/%s:%s" $registry .Values.image.repository $tag -}}
+{{- else -}}
+{{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- end -}}
 {{- end }}
 
 {{- define "agentevals.labels" -}}
@@ -26,6 +40,7 @@ helm.sh/chart: {{ include "agentevals.chart" . }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/part-of: agentevals
 {{- end }}
 
 {{- define "agentevals.selectorLabels" -}}

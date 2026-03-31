@@ -29,6 +29,9 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
+      - name: Set version from tag
+        run: uv version "${{ github.event.inputs.tag || github.ref_name }}" --package agentevals-cli
+
       - name: Build core and bundled wheels
         run: make release
 
@@ -89,3 +92,40 @@ jobs:
           uv build --package agentevals-cli
           uv publish dist/* --token ${{ secrets.PYPI_TOKEN }}
           rm -rf src/agentevals/_static
+
+  push-docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Set appVersion in Chart.yaml
+        run: |
+          VERSION="${TAG#v}"
+          sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" charts/agentevals/Chart.yaml
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+      - name: Build and push
+        run: |
+          VERSION="${TAG#v}"
+          make build-docker \
+            DOCKER_REGISTRY="ghcr.io/${{ github.repository_owner }}" \
+            DOCKER_TAG="$VERSION"
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
