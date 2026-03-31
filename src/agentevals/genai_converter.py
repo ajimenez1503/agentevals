@@ -27,7 +27,6 @@ from .loader.base import Span, Trace
 from .trace_attrs import (
     OTEL_GENAI_INPUT_MESSAGES,
     OTEL_GENAI_OUTPUT_MESSAGES,
-    OTEL_GENAI_TOOL_CALL_ID,
 )
 from .utils.genai_messages import (
     ASSISTANT_ROLES,
@@ -387,13 +386,15 @@ def _extract_tool_calls(
             logger.warning(f"Tool span missing tool name: {tool_span.operation_name}")
             continue
 
-        # Use the real semconv tool_call_id for dedup (None when not present on
-        # the span), rather than the shared function's span_id/"unknown" fallback.
-        real_tool_call_id = tool_span.get_tag(OTEL_GENAI_TOOL_CALL_ID)
+        # The shared function returns span_id or "unknown" as fallback IDs.
+        # For dedup against LLM-message tool calls, only real IDs are usable.
+        tc_id = tool_call["id"]
+        is_placeholder = tc_id in ("unknown", tool_span.span_id)
+        dedup_id = None if is_placeholder else tc_id
 
-        tc = _ToolCall(name=tool_call["name"], args=tool_call["args"], id=real_tool_call_id)
-        if real_tool_call_id:
-            tool_calls_by_id[real_tool_call_id] = tc
+        tc = _ToolCall(name=tool_call["name"], args=tool_call["args"], id=dedup_id)
+        if dedup_id:
+            tool_calls_by_id[dedup_id] = tc
         else:
             tool_calls_no_id.append(tc)
 
@@ -404,7 +405,7 @@ def _extract_tool_calls(
                 _ToolResponse(
                     name=tool_call["name"],
                     response=tool_result["response"],
-                    id=real_tool_call_id,
+                    id=dedup_id,
                 )
             )
 

@@ -207,7 +207,7 @@ def extract_tool_result_from_attrs(attrs: dict[str, Any]) -> dict[str, Any] | No
 
     if raw:
         parsed = parse_tool_response_content(raw)
-        if parsed:
+        if isinstance(parsed, dict):
             is_error = bool(parsed.get("isError", False))
             return {"response": parsed, "isError": is_error}
 
