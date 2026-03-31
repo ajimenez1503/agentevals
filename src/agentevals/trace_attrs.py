@@ -23,6 +23,7 @@ OTEL_GENAI_TOOL_NAME = "gen_ai.tool.name"
 OTEL_GENAI_TOOL_CALL_ID = "gen_ai.tool.call.id"
 OTEL_GENAI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
 OTEL_GENAI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
+OTEL_GENAI_CONVERSATION_ID = "gen_ai.conversation.id"
 
 # ADK-specific custom attributes (gcp.vertex.agent.*)
 ADK_LLM_REQUEST = "gcp.vertex.agent.llm_request"
