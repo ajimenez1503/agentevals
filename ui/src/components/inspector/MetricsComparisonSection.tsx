@@ -293,6 +293,13 @@ export const MetricsComparisonSection: React.FC<MetricsComparisonSectionProps> =
                 </div>
               )}
 
+              {result.perInvocationScores.length === 1 && (() => {
+                const detail = getPerInvocationDetail(result, 0);
+                return detail ? (
+                  <div css={singleInvocationDetailStyles}>{detail}</div>
+                ) : null;
+              })()}
+
               {result.perInvocationScores.length > 1 && (
                 <div css={perInvocationScoresStyles}>
                   <div css={perInvocationLabelStyles}>Per-invocation scores:</div>
@@ -528,6 +535,13 @@ const errorMessageStyles = css`
     flex: 1;
     line-height: 1.4;
   }
+`;
+
+const singleInvocationDetailStyles = css`
+  margin: 0 16px 12px;
+  padding: 8px;
+  background: var(--bg-primary);
+  border-radius: 4px;
 `;
 
 const perInvocationScoresStyles = css`
