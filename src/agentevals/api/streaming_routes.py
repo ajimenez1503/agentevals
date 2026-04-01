@@ -226,6 +226,8 @@ async def evaluate_sessions(
                                     "score": mr.score,
                                     "evalStatus": mr.eval_status,
                                     "error": mr.error,
+                                    "perInvocationScores": mr.per_invocation_scores,
+                                    "details": mr.details,
                                 }
                                 for mr in trace_result.metric_results
                             ],
