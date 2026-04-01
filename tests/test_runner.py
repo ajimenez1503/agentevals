@@ -14,13 +14,21 @@ from agentevals.trace_metrics import extract_trace_metadata
 def _make_tool_trace(tools: list[str]) -> Trace:
     """Build a minimal ADK trace calling the given tools in order."""
     invoke = Span(
-        trace_id="t1", span_id="invoke1", parent_span_id=None,
-        operation_name="invoke_agent test_agent", start_time=1000, duration=10000,
+        trace_id="t1",
+        span_id="invoke1",
+        parent_span_id=None,
+        operation_name="invoke_agent test_agent",
+        start_time=1000,
+        duration=10000,
         tags={"otel.scope.name": "gcp.vertex.agent"},
     )
     call_llm_1 = Span(
-        trace_id="t1", span_id="llm1", parent_span_id="invoke1",
-        operation_name="call_llm", start_time=2000, duration=1000,
+        trace_id="t1",
+        span_id="llm1",
+        parent_span_id="invoke1",
+        operation_name="call_llm",
+        start_time=2000,
+        duration=1000,
         tags={
             "otel.scope.name": "gcp.vertex.agent",
             "gcp.vertex.agent.llm_request": json.dumps(
@@ -30,15 +38,23 @@ def _make_tool_trace(tools: list[str]) -> Trace:
     )
     tool_spans = [
         Span(
-            trace_id="t1", span_id=f"tool{i}", parent_span_id="invoke1",
-            operation_name=f"execute_tool {name}", start_time=3000 + i * 100, duration=100,
+            trace_id="t1",
+            span_id=f"tool{i}",
+            parent_span_id="invoke1",
+            operation_name=f"execute_tool {name}",
+            start_time=3000 + i * 100,
+            duration=100,
             tags={"otel.scope.name": "gcp.vertex.agent"},
         )
         for i, name in enumerate(tools)
     ]
     call_llm_2 = Span(
-        trace_id="t1", span_id="llm2", parent_span_id="invoke1",
-        operation_name="call_llm", start_time=5000, duration=1000,
+        trace_id="t1",
+        span_id="llm2",
+        parent_span_id="invoke1",
+        operation_name="call_llm",
+        start_time=5000,
+        duration=1000,
         tags={
             "otel.scope.name": "gcp.vertex.agent",
             "gcp.vertex.agent.llm_response": json.dumps(
@@ -57,19 +73,33 @@ def _make_tool_trace(tools: list[str]) -> Trace:
 def _make_eval_set_json(tools: list[str]) -> dict:
     return {
         "eval_set_id": "test",
-        "eval_cases": [{
-            "eval_id": "inv_1",
-            "conversation": [{
-                "invocation_id": "inv_1",
-                "user_content": {"role": "user", "parts": [{"text": "do something"}]},
-                "final_response": {"role": "model", "parts": [{"text": "done"}]},
-                "intermediate_data": {
-                    "tool_uses": [{"name": t, "args": {}, "id": f"e{i}"} for i, t in enumerate(tools)],
-                    "tool_responses": [],
-                },
-            }],
-        }],
+        "eval_cases": [
+            {
+                "eval_id": "inv_1",
+                "conversation": [
+                    {
+                        "invocation_id": "inv_1",
+                        "user_content": {
+                            "role": "user",
+                            "parts": [{"text": "do something"}],
+                        },
+                        "final_response": {
+                            "role": "model",
+                            "parts": [{"text": "done"}],
+                        },
+                        "intermediate_data": {
+                            "tool_uses": [
+                                {"name": t, "args": {}, "id": f"e{i}"}
+                                for i, t in enumerate(tools)
+                            ],
+                            "tool_responses": [],
+                        },
+                    }
+                ],
+            }
+        ],
     }
+
 
 SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "samples")
 HELM_TRACE = os.path.join(SAMPLES_DIR, "helm.json")
@@ -242,10 +272,14 @@ class TestTrajectoryMatchType:
     """
 
     def _run(self, match_type, tmp_path):
-        conv_result = convert_traces([_make_tool_trace(["helm_get_release", "helm_list_releases"])])[0]
+        conv_result = convert_traces(
+            [_make_tool_trace(["helm_get_release", "helm_list_releases"])]
+        )[0]
 
         eval_set_path = tmp_path / "eval_set.json"
-        eval_set_path.write_text(json.dumps(_make_eval_set_json(["helm_list_releases", "helm_get_release"])))
+        eval_set_path.write_text(
+            json.dumps(_make_eval_set_json(["helm_list_releases", "helm_get_release"]))
+        )
         eval_set = load_eval_set(str(eval_set_path))
 
         return asyncio.run(
