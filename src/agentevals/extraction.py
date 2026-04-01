@@ -22,9 +22,10 @@ from .trace_attrs import (
     ADK_SCOPE_VALUE,
     ADK_TOOL_CALL_ARGS,
     ADK_TOOL_RESPONSE,
+    OTEL_GENAI_LEGACY_COMPLETION_PREFIX,
+    OTEL_GENAI_LEGACY_PROMPT_PREFIX,
     OTEL_GENAI_INPUT_MESSAGES,
     OTEL_GENAI_OP,
-    OTEL_GENAI_OUTPUT_MESSAGES,
     OTEL_GENAI_REQUEST_MODEL,
     OTEL_GENAI_TOOL_CALL_ARGUMENTS,
     OTEL_GENAI_TOOL_CALL_ID,
@@ -39,12 +40,15 @@ from .utils.genai_messages import (
     USER_ROLES,
     extract_text_from_message,
     extract_tool_call_args_from_messages,
+    get_input_messages_from_attrs,
+    get_output_messages_from_attrs,
     parse_json_attr,
 )
 
 logger = logging.getLogger(__name__)
 
 FORMAT_DETECTION_SPAN_LIMIT = 10
+
 
 # ---------------------------------------------------------------------------
 # Pure extraction functions (operate on flat attribute dicts)
@@ -70,15 +74,11 @@ def extract_user_text_from_attrs(attrs: dict[str, Any]) -> str | None:
                     if parts:
                         return " ".join(p.get("text", "") for p in parts if "text" in p)
 
-    messages_raw = attrs.get(OTEL_GENAI_INPUT_MESSAGES)
-    if messages_raw:
-        messages = parse_json_attr(messages_raw, "gen_ai.input.messages")
-        if isinstance(messages, list):
-            for msg in reversed(messages):
-                if isinstance(msg, dict) and msg.get("role") in USER_ROLES:
-                    text = extract_text_from_message(msg)
-                    if text:
-                        return text
+    for msg in reversed(get_input_messages_from_attrs(attrs)):
+        if msg.get("role") in USER_ROLES:
+            text = extract_text_from_message(msg)
+            if text:
+                return text
 
     return None
 
@@ -96,15 +96,11 @@ def extract_agent_response_from_attrs(attrs: dict[str, Any]) -> str | None:
                 if text_parts:
                     return " ".join(p["text"] for p in text_parts)
 
-    messages_raw = attrs.get(OTEL_GENAI_OUTPUT_MESSAGES)
-    if messages_raw:
-        messages = parse_json_attr(messages_raw, "gen_ai.output.messages")
-        if isinstance(messages, list):
-            for msg in messages:
-                if isinstance(msg, dict) and msg.get("role") in ASSISTANT_ROLES:
-                    text = extract_text_from_message(msg)
-                    if text:
-                        return text
+    for msg in get_output_messages_from_attrs(attrs):
+        if msg.get("role") in ASSISTANT_ROLES:
+            text = extract_text_from_message(msg)
+            if text:
+                return text
 
     return None
 
@@ -163,9 +159,9 @@ def extract_tool_call_from_attrs(
             args = parsed
 
     if not args:
-        messages_raw = attrs.get(OTEL_GENAI_INPUT_MESSAGES)
-        if messages_raw:
-            fallback_args, fallback_id = extract_tool_call_args_from_messages(messages_raw, tool_name)
+        input_messages = get_input_messages_from_attrs(attrs)
+        if input_messages:
+            fallback_args, fallback_id = extract_tool_call_args_from_messages(input_messages, tool_name)
             if fallback_args:
                 args = fallback_args
             if fallback_id:
@@ -211,26 +207,20 @@ def extract_tool_result_from_attrs(attrs: dict[str, Any]) -> dict[str, Any] | No
             is_error = bool(parsed.get("isError", False))
             return {"response": parsed, "isError": is_error}
 
-    output_msgs_raw = attrs.get(OTEL_GENAI_OUTPUT_MESSAGES)
-    if output_msgs_raw:
-        messages = parse_json_attr(output_msgs_raw, "gen_ai.output.messages")
-        if isinstance(messages, list):
-            for msg in messages:
-                if not isinstance(msg, dict):
+    for msg in get_output_messages_from_attrs(attrs):
+        for part in msg.get("parts", []):
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") == "tool_call_response" and "response" in part:
+                resp = part["response"]
+                if isinstance(resp, list):
+                    texts = [t.get("text", "") for t in resp if isinstance(t, dict) and "text" in t]
+                    parsed = parse_tool_response_content(" ".join(texts))
+                elif isinstance(resp, dict):
+                    parsed = resp
+                else:
                     continue
-                for part in msg.get("parts", []):
-                    if not isinstance(part, dict):
-                        continue
-                    if part.get("type") == "tool_call_response" and "response" in part:
-                        resp = part["response"]
-                        if isinstance(resp, list):
-                            texts = [t.get("text", "") for t in resp if isinstance(t, dict) and "text" in t]
-                            parsed = parse_tool_response_content(" ".join(texts))
-                        elif isinstance(resp, dict):
-                            parsed = resp
-                        else:
-                            continue
-                        return {"response": parsed, "isError": bool(parsed.get("isError", False))}
+                return {"response": parsed, "isError": bool(parsed.get("isError", False))}
 
     return None
 
@@ -245,7 +235,12 @@ def is_adk_scope(span: Span) -> bool:
 
 
 def is_llm_span(span: Span) -> bool:
-    return span.get_tag(OTEL_GENAI_REQUEST_MODEL) is not None or span.get_tag(OTEL_GENAI_INPUT_MESSAGES) is not None
+    return (
+        span.hasTag(OTEL_GENAI_REQUEST_MODEL)
+        or span.hasTag(OTEL_GENAI_INPUT_MESSAGES)
+        or span.hasTagPrefix(OTEL_GENAI_LEGACY_PROMPT_PREFIX)
+        or span.hasTagPrefix(OTEL_GENAI_LEGACY_COMPLETION_PREFIX)
+    )
 
 
 def is_tool_span(span: Span) -> bool:
@@ -357,10 +352,20 @@ class AdkExtractor:
 class GenAIExtractor:
     def detect(self, trace: Trace) -> bool:
         for span in trace.all_spans[:FORMAT_DETECTION_SPAN_LIMIT]:
-            if span.get_tag(OTEL_GENAI_REQUEST_MODEL) or span.get_tag(OTEL_GENAI_INPUT_MESSAGES):
+            if (
+                span.hasTag(OTEL_GENAI_REQUEST_MODEL)
+                or span.hasTag(OTEL_GENAI_INPUT_MESSAGES)
+                or span.hasTagPrefix(OTEL_GENAI_LEGACY_PROMPT_PREFIX)
+                or span.hasTagPrefix(OTEL_GENAI_LEGACY_COMPLETION_PREFIX)
+            ):
                 return True
         for span in trace.all_spans[FORMAT_DETECTION_SPAN_LIMIT:]:
-            if span.get_tag(OTEL_GENAI_REQUEST_MODEL) or span.get_tag(OTEL_GENAI_INPUT_MESSAGES):
+            if (
+                span.hasTag(OTEL_GENAI_REQUEST_MODEL)
+                or span.hasTag(OTEL_GENAI_INPUT_MESSAGES)
+                or span.hasTagPrefix(OTEL_GENAI_LEGACY_PROMPT_PREFIX)
+                or span.hasTagPrefix(OTEL_GENAI_LEGACY_COMPLETION_PREFIX)
+            ):
                 return True
         return False
 

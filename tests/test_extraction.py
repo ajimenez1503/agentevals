@@ -26,6 +26,8 @@ from agentevals.trace_attrs import (
     ADK_LLM_RESPONSE,
     ADK_SCOPE_VALUE,
     ADK_TOOL_CALL_ARGS,
+    OTEL_GENAI_LEGACY_COMPLETION_PREFIX,
+    OTEL_GENAI_LEGACY_PROMPT_PREFIX,
     OTEL_GENAI_AGENT_NAME,
     OTEL_GENAI_INPUT_MESSAGES,
     OTEL_GENAI_OP,
@@ -145,6 +147,13 @@ class TestExtractUserText:
         }
         assert extract_user_text_from_attrs(attrs) == "Already parsed"
 
+    def test_genai_legacy_prompt_indexed(self):
+        attrs = {
+            f"{OTEL_GENAI_LEGACY_PROMPT_PREFIX}.0.role": "user",
+            f"{OTEL_GENAI_LEGACY_PROMPT_PREFIX}.0.content": "Legacy hello",
+        }
+        assert extract_user_text_from_attrs(attrs) == "Legacy hello"
+
 
 # ---------------------------------------------------------------------------
 # extract_agent_response_from_attrs
@@ -193,6 +202,13 @@ class TestExtractAgentResponse:
     def test_adk_no_text_parts(self):
         attrs = {ADK_LLM_RESPONSE: json.dumps({"content": {"parts": [{"function_call": {"name": "tool"}}]}})}
         assert extract_agent_response_from_attrs(attrs) is None
+
+    def test_genai_legacy_completion_indexed(self):
+        attrs = {
+            f"{OTEL_GENAI_LEGACY_COMPLETION_PREFIX}.0.role": "assistant",
+            f"{OTEL_GENAI_LEGACY_COMPLETION_PREFIX}.0.content": "Legacy response",
+        }
+        assert extract_agent_response_from_attrs(attrs) == "Legacy response"
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +338,17 @@ class TestExtractToolCall:
         result = extract_tool_call_from_attrs(attrs)
         assert result["args"] == {"genai": True}
 
+    def test_extract_tool_args_from_legacy_prompt_messages(self):
+        attrs = {
+            OTEL_GENAI_TOOL_NAME: "roll_die",
+            f"{OTEL_GENAI_LEGACY_PROMPT_PREFIX}.0.role": "assistant",
+            f"{OTEL_GENAI_LEGACY_PROMPT_PREFIX}.0.tool_calls.0.name": "roll_die",
+            f"{OTEL_GENAI_LEGACY_PROMPT_PREFIX}.0.tool_calls.0.arguments": '{"sides": 20}',
+        }
+        result = extract_tool_call_from_attrs(attrs)
+        assert result["name"] == "roll_die"
+        assert result["args"] == {"sides": 20}
+
 
 # ---------------------------------------------------------------------------
 # flatten_otlp_attributes
@@ -377,6 +404,9 @@ class TestSpanClassifiers:
 
     def test_is_llm_span_empty(self):
         assert not is_llm_span(_span())
+
+    def test_is_llm_span_legacy_prompt(self):
+        assert is_llm_span(_span(tags={f"{OTEL_GENAI_LEGACY_PROMPT_PREFIX}.0.role": "user"}))
 
     def test_is_tool_span(self):
         assert is_tool_span(_span(tags={OTEL_GENAI_TOOL_NAME: "search"}))

@@ -19,6 +19,8 @@ The OTLP receiver runs on port 4318 (standard OTLP HTTP port) and accepts both `
 | Example | Framework | LLM Provider |
 |---------|-----------|-------------|
 | [zero-code-examples/langchain/](./zero-code-examples/langchain/) | LangChain | OpenAI |
+| [zero-code-examples/ollama/](./zero-code-examples/ollama/) | LangChain | Ollama (local) |
+| [zero-code-examples/ollama-openai/](./zero-code-examples/ollama-openai/) | LangChain | Ollama via OpenAI-compatible API |
 | [zero-code-examples/strands/](./zero-code-examples/strands/) | Strands | OpenAI |
 | [zero-code-examples/adk/](./zero-code-examples/adk/) | Google ADK | Gemini |
 
@@ -92,6 +94,8 @@ Detection checks for `gen_ai.request.model` / `gen_ai.input.messages` (GenAI sem
 | Example | Framework | LLM Provider | Instrumentation | Content Delivery |
 |---------|-----------|-------------|-----------------|-----------------|
 | [zero-code-examples/langchain/](./zero-code-examples/langchain/) | LangChain | OpenAI | GenAI semconv (logs) | Standard OTLP export |
+| [zero-code-examples/ollama/](./zero-code-examples/ollama/) | LangChain | Ollama (local) | GenAI semconv (logs) | Standard OTLP export |
+| [zero-code-examples/ollama-openai/](./zero-code-examples/ollama-openai/) | LangChain | Ollama (OpenAI-compatible) | GenAI semconv (logs) | Standard OTLP export |
 | [zero-code-examples/strands/](./zero-code-examples/strands/) | Strands | OpenAI | GenAI semconv (events*) | Standard OTLP export |
 | [zero-code-examples/adk/](./zero-code-examples/adk/) | Google ADK | Gemini | ADK built-in | Standard OTLP export |
 | [langchain_agent](./langchain_agent/) | LangChain | OpenAI | GenAI semconv (logs) | SDK WebSocket |
@@ -199,6 +203,8 @@ cd ui && npm run dev
 ```bash
 # Zero-code OTLP (recommended):
 python examples/zero-code-examples/langchain/run.py
+python examples/zero-code-examples/ollama/run.py
+python examples/zero-code-examples/ollama-openai/run.py
 python examples/zero-code-examples/strands/run.py
 python examples/zero-code-examples/adk/run.py
 
@@ -216,7 +222,8 @@ python examples/strands_agent/main.py
 Traces stream to the dev server in real-time. Evaluation runs automatically when the session completes.
 
 See each example's README for prerequisites and detailed instructions:
-- [zero-code-examples/](./zero-code-examples/) (LangChain + Strands, standard OTLP)
+
+- [zero-code-examples/](./zero-code-examples/) (LangChain + Ollama + Strands, standard OTLP)
 - [dice_agent/README.md](./dice_agent/README.md) (Google ADK + Gemini)
 - [langchain_agent/README.md](./langchain_agent/README.md) (LangChain + OpenAI, SDK)
 - [strands_agent/](./strands_agent/) (Strands + OpenAI, SDK)

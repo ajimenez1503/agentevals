@@ -145,6 +145,13 @@ class TestExtractUserText:
         with pytest.raises(ValueError):
             _extract_user_text(span)
 
+    def test_extract_user_text_legacy_prompt_indexed(self):
+        span = _make_genai_llm_span("span1")
+        span.tags["gen_ai.prompt.0.role"] = "user"
+        span.tags["gen_ai.prompt.0.content"] = "Legacy user text"
+        text = _extract_user_text(span)
+        assert text == "Legacy user text"
+
 
 class TestExtractAssistantText:
     def test_extract_assistant_text_string_format(self):
@@ -184,6 +191,20 @@ class TestExtractAssistantText:
         )
         text = _extract_assistant_text(span)
         assert text == "Second message"
+
+    def test_extract_assistant_text_legacy_completion_indexed(self):
+        span = _make_genai_llm_span("span1")
+        span.tags["gen_ai.completion.0.role"] = "assistant"
+        span.tags["gen_ai.completion.0.content"] = "Legacy assistant text"
+        text = _extract_assistant_text(span)
+        assert text == "Legacy assistant text"
+
+    def test_extract_assistant_text_legacy_completion_without_content_no_warning(self, caplog):
+        span = _make_genai_llm_span("span1")
+        span.tags["gen_ai.completion.0.role"] = "assistant"
+        text = _extract_assistant_text(span)
+        assert text == ""
+        assert "no assistant message with content in gen_ai.output.messages" not in caplog.text
 
 
 class TestExtractToolCalls:
@@ -260,6 +281,150 @@ class TestConvertGenaiTrace:
         assert inv.user_content.parts[0].text == "Hello"
         assert inv.final_response.parts[0].text == "Hi there"
         assert len(result.warnings) == 0
+
+    def test_convert_single_turn_legacy_prompt_completion(self):
+        llm_span = _make_genai_llm_span("llm1")
+        llm_span.tags.update(
+            {
+                "gen_ai.prompt.0.role": "user",
+                "gen_ai.prompt.0.content": "Hello from legacy",
+                "gen_ai.completion.0.role": "assistant",
+                "gen_ai.completion.0.content": "Hi from legacy",
+            }
+        )
+
+        trace = Trace(
+            trace_id="test-trace",
+            root_spans=[llm_span],
+            all_spans=[llm_span],
+        )
+
+        result = convert_genai_trace(trace)
+
+        assert len(result.invocations) == 1
+        inv = result.invocations[0]
+        assert inv.user_content.parts[0].text == "Hello from legacy"
+        assert inv.final_response.parts[0].text == "Hi from legacy"
+
+    def test_convert_legacy_prompt_history_extracts_tool_calls(self):
+        llm_span = _make_genai_llm_span("llm1")
+        llm_span.tags.update(
+            {
+                "gen_ai.prompt.0.role": "user",
+                "gen_ai.prompt.0.content": "Hi",
+                "gen_ai.prompt.1.role": "assistant",
+                "gen_ai.prompt.1.tool_calls.0.name": "roll_die",
+                "gen_ai.prompt.1.tool_calls.0.arguments": '{"sides": 6}',
+                "gen_ai.prompt.2.role": "tool",
+                "gen_ai.prompt.2.content": '{"sides": 6, "result": 2}',
+                "gen_ai.prompt.3.role": "assistant",
+                "gen_ai.prompt.3.content": "You rolled a 2",
+                "gen_ai.prompt.4.role": "user",
+                "gen_ai.prompt.4.content": "Roll a 20-sided die for me",
+                "gen_ai.completion.0.role": "assistant",
+            }
+        )
+
+        trace = Trace(
+            trace_id="test-trace",
+            root_spans=[llm_span],
+            all_spans=[llm_span],
+        )
+
+        result = convert_genai_trace(trace)
+
+        assert len(result.invocations) == 1
+        inv = result.invocations[0]
+        assert len(inv.intermediate_data.tool_uses) == 1
+        assert inv.intermediate_data.tool_uses[0].name == "roll_die"
+        assert inv.intermediate_data.tool_uses[0].args == {"sides": 6}
+        assert len(inv.intermediate_data.tool_responses) == 1
+        assert inv.intermediate_data.tool_responses[0].name == "roll_die"
+
+    def test_convert_legacy_prompt_history_not_cumulative_across_invocations(self):
+        def _set_legacy_prompt(span: Span, messages: list[dict]) -> None:
+            def _flatten(prefix: str, value):
+                if isinstance(value, dict):
+                    for k, v in value.items():
+                        _flatten(f"{prefix}.{k}", v)
+                    return
+                if isinstance(value, list):
+                    for i, item in enumerate(value):
+                        _flatten(f"{prefix}.{i}", item)
+                    return
+                span.tags[prefix] = value
+
+            for i, msg in enumerate(messages):
+                _flatten(f"gen_ai.prompt.{i}", msg)
+
+        span1 = _make_genai_llm_span("llm1")
+        span1.start_time = 1000
+        _set_legacy_prompt(
+            span1,
+            [
+                {"role": "user", "content": "Hi"},
+                {"role": "assistant", "tool_calls": [{"name": "roll_die", "arguments": '{"sides": 6}'}]},
+                {"role": "tool", "content": '{"sides": 6, "result": 2}'},
+            ],
+        )
+        span1.tags["gen_ai.completion.0.role"] = "assistant"
+
+        span2 = _make_genai_llm_span("llm2")
+        span2.start_time = 2000
+        _set_legacy_prompt(
+            span2,
+            [
+                {"role": "user", "content": "Hi"},
+                {"role": "assistant", "tool_calls": [{"name": "roll_die", "arguments": '{"sides": 6}'}]},
+                {"role": "tool", "content": '{"sides": 6, "result": 2}'},
+                {"role": "assistant", "content": "You rolled a 2"},
+                {"role": "user", "content": "Roll a 20-sided die"},
+                {"role": "assistant", "tool_calls": [{"name": "roll_die", "arguments": '{"sides": 20}'}]},
+                {"role": "tool", "content": '{"sides": 20, "result": 11}'},
+            ],
+        )
+        span2.tags["gen_ai.completion.0.role"] = "assistant"
+
+        span3 = _make_genai_llm_span("llm3")
+        span3.start_time = 3000
+        _set_legacy_prompt(
+            span3,
+            [
+                {"role": "user", "content": "Hi"},
+                {"role": "assistant", "tool_calls": [{"name": "roll_die", "arguments": '{"sides": 6}'}]},
+                {"role": "tool", "content": '{"sides": 6, "result": 2}'},
+                {"role": "assistant", "content": "You rolled a 2"},
+                {"role": "user", "content": "Roll a 20-sided die"},
+                {"role": "assistant", "tool_calls": [{"name": "roll_die", "arguments": '{"sides": 20}'}]},
+                {"role": "tool", "content": '{"sides": 20, "result": 11}'},
+                {"role": "assistant", "content": "You rolled an 11"},
+                {"role": "user", "content": "Is it prime?"},
+                {"role": "assistant", "tool_calls": [{"name": "check_prime", "arguments": '{"nums": [11]}'}]},
+                {"role": "tool", "content": '{"results": {"11": true}}'},
+            ],
+        )
+        span3.tags["gen_ai.completion.0.role"] = "assistant"
+
+        trace = Trace(
+            trace_id="test-trace",
+            root_spans=[span1, span2, span3],
+            all_spans=[span1, span2, span3],
+        )
+
+        result = convert_genai_trace(trace)
+
+        assert len(result.invocations) == 3
+        assert [i.user_content.parts[0].text for i in result.invocations] == [
+            "Hi",
+            "Roll a 20-sided die",
+            "Is it prime?",
+        ]
+        assert [len(i.intermediate_data.tool_uses) for i in result.invocations] == [1, 1, 1]
+        assert [i.intermediate_data.tool_uses[0].name for i in result.invocations] == [
+            "roll_die",
+            "roll_die",
+            "check_prime",
+        ]
 
     def test_convert_multiturn_conversation(self):
         llm_span1 = _make_genai_llm_span(

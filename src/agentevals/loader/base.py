@@ -23,6 +23,13 @@ class Span:
     def get_tag(self, key: str, default: Any = None) -> Any:
         return self.tags.get(key, default)
 
+    def hasTag(self, key: str) -> bool:
+        return self.get_tag(key) is not None
+
+    def hasTagPrefix(self, prefix: str) -> bool:
+        key_prefix = f"{prefix}."
+        return any(isinstance(k, str) and k.startswith(key_prefix) for k in self.tags)
+
     @property
     def end_time(self) -> int:
         return self.start_time + self.duration

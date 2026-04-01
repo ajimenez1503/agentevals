@@ -1,0 +1,204 @@
+{
+    "data": [
+        {
+            "traceID": "454fa46f60883d4985f08e78a1b44ed6",
+            "spans": [
+                {
+                    "traceID": "454fa46f60883d4985f08e78a1b44ed6",
+                    "spanID": "430aae1f8fa2a333",
+                    "operationName": "ollama.chat",
+                    "references": [],
+                    "startTime": 1775037018482966,
+                    "duration": 660909,
+                    "tags": [
+                        {
+                            "key": "gen_ai.completion.0.role",
+                            "type": "string",
+                            "value": "assistant"
+                        },
+                        {
+                            "key": "gen_ai.prompt.0.content",
+                            "type": "string",
+                            "value": "Hi! Can you help me?"
+                        },
+                        {
+                            "key": "gen_ai.prompt.0.role",
+                            "type": "string",
+                            "value": "user"
+                        },
+                        {
+                            "key": "gen_ai.prompt.1.role",
+                            "type": "string",
+                            "value": "assistant"
+                        },
+                        {
+                            "key": "gen_ai.prompt.1.tool_calls.0.arguments",
+                            "type": "string",
+                            "value": "{\"sides\": 6}"
+                        },
+                        {
+                            "key": "gen_ai.prompt.1.tool_calls.0.name",
+                            "type": "string",
+                            "value": "roll_die"
+                        },
+                        {
+                            "key": "gen_ai.prompt.2.content",
+                            "type": "string",
+                            "value": "{\"sides\": 6, \"result\": 2, \"message\": \"Rolled a 2 on a 6-sided die\"}"
+                        },
+                        {
+                            "key": "gen_ai.prompt.2.role",
+                            "type": "string",
+                            "value": "tool"
+                        },
+                        {
+                            "key": "gen_ai.prompt.3.content",
+                            "type": "string",
+                            "value": "You rolled a 2 on a 6-sided die. Would you like to roll again?"
+                        },
+                        {
+                            "key": "gen_ai.prompt.3.role",
+                            "type": "string",
+                            "value": "assistant"
+                        },
+                        {
+                            "key": "gen_ai.prompt.4.content",
+                            "type": "string",
+                            "value": "Roll a 20-sided die for me"
+                        },
+                        {
+                            "key": "gen_ai.prompt.4.role",
+                            "type": "string",
+                            "value": "user"
+                        },
+                        {
+                            "key": "gen_ai.request.model",
+                            "type": "string",
+                            "value": "llama3.2:3b"
+                        },
+                        {
+                            "key": "gen_ai.response.model",
+                            "type": "string",
+                            "value": "llama3.2:3b"
+                        },
+                        {
+                            "key": "gen_ai.system",
+                            "type": "string",
+                            "value": "Ollama"
+                        },
+                        {
+                            "key": "gen_ai.usage.input_tokens",
+                            "type": "int64",
+                            "value": 285
+                        },
+                        {
+                            "key": "gen_ai.usage.output_tokens",
+                            "type": "int64",
+                            "value": 18
+                        },
+                        {
+                            "key": "llm.is_streaming",
+                            "type": "bool",
+                            "value": true
+                        },
+                        {
+                            "key": "llm.request.functions.0.description",
+                            "type": "string",
+                            "value": "Roll a die with a specified number of sides."
+                        },
+                        {
+                            "key": "llm.request.functions.0.name",
+                            "type": "string",
+                            "value": "roll_die"
+                        },
+                        {
+                            "key": "llm.request.functions.0.parameters",
+                            "type": "string",
+                            "value": "{\"type\": \"object\", \"properties\": {\"sides\": {\"type\": \"integer\"}}}"
+                        },
+                        {
+                            "key": "llm.request.functions.1.description",
+                            "type": "string",
+                            "value": "Check if numbers are prime."
+                        },
+                        {
+                            "key": "llm.request.functions.1.name",
+                            "type": "string",
+                            "value": "check_prime"
+                        },
+                        {
+                            "key": "llm.request.functions.1.parameters",
+                            "type": "string",
+                            "value": "{\"type\": \"object\", \"required\": [\"nums\"], \"properties\": {\"nums\": {\"type\": \"array\", \"items\": {\"type\": \"integer\"}}}}"
+                        },
+                        {
+                            "key": "llm.request.type",
+                            "type": "string",
+                            "value": "chat"
+                        },
+                        {
+                            "key": "llm.usage.total_tokens",
+                            "type": "int64",
+                            "value": 303
+                        },
+                        {
+                            "key": "otel.scope.name",
+                            "type": "string",
+                            "value": "opentelemetry.instrumentation.ollama"
+                        },
+                        {
+                            "key": "otel.scope.version",
+                            "type": "string",
+                            "value": "0.57.0"
+                        },
+                        {
+                            "key": "span.kind",
+                            "type": "string",
+                            "value": "client"
+                        }
+                    ],
+                    "logs": [],
+                    "processID": "p1",
+                    "warnings": null
+                }
+            ],
+            "processes": {
+                "p1": {
+                    "serviceName": "unknown_service",
+                    "tags": [
+                        {
+                            "key": "agentevals.eval_set_id",
+                            "type": "string",
+                            "value": "langchain_local_ollama_eval"
+                        },
+                        {
+                            "key": "agentevals.session_name",
+                            "type": "string",
+                            "value": "langchain-ollama-zero-code"
+                        },
+                        {
+                            "key": "telemetry.sdk.language",
+                            "type": "string",
+                            "value": "python"
+                        },
+                        {
+                            "key": "telemetry.sdk.name",
+                            "type": "string",
+                            "value": "opentelemetry"
+                        },
+                        {
+                            "key": "telemetry.sdk.version",
+                            "type": "string",
+                            "value": "1.38.0"
+                        }
+                    ]
+                }
+            },
+            "warnings": null
+        }
+    ],
+    "total": 0,
+    "limit": 0,
+    "offset": 0,
+    "errors": null
+}

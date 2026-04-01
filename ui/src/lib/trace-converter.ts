@@ -5,6 +5,8 @@ export const ADK_SCOPE = 'gcp.vertex.agent';
 
 export const USER_ROLES = ['user', 'human'];
 export const ASSISTANT_ROLES = ['assistant', 'model', 'ai'];
+const LEGACY_PROMPT_PREFIX = 'gen_ai.prompt';
+const LEGACY_COMPLETION_PREFIX = 'gen_ai.completion';
 
 export function getInputMessagesAttr(span: Span): string | undefined {
   return span.tags['gen_ai.input.messages']
@@ -16,6 +18,95 @@ export function getOutputMessagesAttr(span: Span): string | undefined {
   return span.tags['gen_ai.output.messages']
       || span.tags['gen_ai.completion']
       || span.tags['gen_ai.response.messages'];
+}
+
+function getInputMessages(span: Span): any[] {
+  return getMessagesFromSpan(span, 'gen_ai.input.messages', LEGACY_PROMPT_PREFIX);
+}
+
+function getOutputMessages(span: Span): any[] {
+  return getMessagesFromSpan(span, 'gen_ai.output.messages', LEGACY_COMPLETION_PREFIX);
+}
+
+function getMessagesFromSpan(span: Span, modernKey: string, legacyPrefix: string): any[] {
+  const modernRaw = span.tags[modernKey];
+  if (modernRaw !== undefined) {
+    const parsed = safeJsonParse<any[]>(modernRaw, []);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+  }
+  return parseLegacyIndexedMessages(span.tags, legacyPrefix);
+}
+
+function parseLegacyIndexedMessages(tags: Record<string, any>, prefix: string): any[] {
+  const byIndex = new Map<number, any>();
+  const keyPrefix = `${prefix}.`;
+
+  Object.entries(tags).forEach(([key, value]) => {
+    if (!key.startsWith(keyPrefix)) return;
+
+    const suffix = key.slice(keyPrefix.length);
+    const dotIdx = suffix.indexOf('.');
+    if (dotIdx <= 0) return;
+
+    const indexToken = suffix.slice(0, dotIdx);
+    if (!/^\d+$/.test(indexToken)) return;
+
+    const messageIndex = Number(indexToken);
+    const path = suffix.slice(dotIdx + 1).split('.');
+
+    if (!byIndex.has(messageIndex)) {
+      byIndex.set(messageIndex, {});
+    }
+
+    setNestedLegacyValue(byIndex.get(messageIndex), path, value);
+  });
+
+  return Array.from(byIndex.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, msg]) => msg)
+    .filter(Boolean);
+}
+
+function setNestedLegacyValue(target: any, path: string[], value: any): void {
+  let current = target;
+
+  for (let i = 0; i < path.length; i++) {
+    const part = path[i];
+    const isLast = i === path.length - 1;
+    const nextPart = path[i + 1];
+    const nextIsIndex = nextPart !== undefined && /^\d+$/.test(nextPart);
+
+    if (/^\d+$/.test(part)) {
+      const idx = Number(part);
+      if (!Array.isArray(current)) return;
+      while (current.length <= idx) {
+        current.push(nextIsIndex ? [] : {});
+      }
+      if (isLast) {
+        current[idx] = value;
+        return;
+      }
+      if (typeof current[idx] !== 'object' || current[idx] === null || Array.isArray(current[idx]) !== nextIsIndex) {
+        current[idx] = nextIsIndex ? [] : {};
+      }
+      current = current[idx];
+      continue;
+    }
+
+    if (typeof current !== 'object' || current === null || Array.isArray(current)) return;
+    if (isLast) {
+      current[part] = value;
+      return;
+    }
+    const expectedArray = nextIsIndex;
+    const existing = current[part];
+    if (typeof existing !== 'object' || existing === null || Array.isArray(existing) !== expectedArray) {
+      current[part] = expectedArray ? [] : {};
+    }
+    current = current[part];
+  }
 }
 
 interface ConversionResult {
@@ -281,11 +372,8 @@ function extractToolTrajectory(
 }
 
 function isBroadcastEnriched(span: Span): boolean {
-  const messagesAttr = getInputMessagesAttr(span);
-  if (!messagesAttr) return false;
-
-  const messages = safeJsonParse<any[]>(messagesAttr, []);
-  if (!Array.isArray(messages)) return false;
+  const messages = getInputMessages(span);
+  if (!Array.isArray(messages) || messages.length === 0) return false;
 
   const userCount = messages.filter(
     (m: any) => typeof m === 'object' && m !== null && USER_ROLES.includes(m.role)
@@ -294,11 +382,8 @@ function isBroadcastEnriched(span: Span): boolean {
 }
 
 function trimCumulativeOutput(span: Span, outputMessages: any[]): any[] {
-  const inputAttr = getInputMessagesAttr(span);
-  if (!inputAttr) return outputMessages;
-
-  const inputMessages = safeJsonParse<any[]>(inputAttr, []);
-  if (!Array.isArray(inputMessages)) return outputMessages;
+  const inputMessages = getInputMessages(span);
+  if (!Array.isArray(inputMessages) || inputMessages.length === 0) return outputMessages;
 
   const userCount = inputMessages.filter(
     (m: any) => typeof m === 'object' && m !== null && USER_ROLES.includes(m.role)
@@ -356,6 +441,11 @@ export function extractToolCallsFromGenAIMessage(msg: any): ToolCall[] {
       if (tc.type === 'function' && tc.function) {
         const args = safeJsonParse<Record<string, any>>(tc.function.arguments || '{}', {});
         result.push({ name: tc.function.name, args, id: tc.id });
+      } else if (tc.name) {
+        const args = typeof tc.arguments === 'string'
+          ? safeJsonParse<Record<string, any>>(tc.arguments, {})
+          : (tc.arguments || {});
+        result.push({ name: tc.name, args, id: tc.id });
       }
     }
   }
@@ -371,6 +461,54 @@ export function extractToolCallsFromGenAIMessage(msg: any): ToolCall[] {
     }
   }
   return result;
+}
+
+function parseToolResponseContent(content: any): Record<string, any> {
+  if (typeof content === 'string') {
+    const parsed = safeJsonParse<any>(content, null);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+    return { result: content };
+  }
+  if (content && typeof content === 'object' && !Array.isArray(content)) {
+    return content as Record<string, any>;
+  }
+  return { result: String(content) };
+}
+
+function extractToolsFromInputHistory(messages: any[]): { toolUses: ToolCall[]; toolResponses: ToolResponse[] } {
+  const toolUses: ToolCall[] = [];
+  const toolResponses: ToolResponse[] = [];
+  const pendingCalls: ToolCall[] = [];
+
+  for (const msg of messages) {
+    if (typeof msg !== 'object' || !msg) continue;
+    const role = msg.role;
+
+    if (ASSISTANT_ROLES.includes(role)) {
+      const calls = extractToolCallsFromGenAIMessage(msg);
+      for (const call of calls) {
+        toolUses.push(call);
+        pendingCalls.push(call);
+      }
+      continue;
+    }
+
+    if (role === 'tool') {
+      const text = extractTextFromGenAIMessage(msg);
+      if (!text) continue;
+      const response = parseToolResponseContent(text);
+      const matched = pendingCalls.shift();
+      toolResponses.push({
+        name: matched?.name || msg.name || 'tool',
+        response,
+        id: matched?.id || msg.tool_call_id,
+      });
+    }
+  }
+
+  return { toolUses, toolResponses };
 }
 
 function convertGenAITrace(trace: Trace): ConversionResult {
@@ -416,8 +554,9 @@ function convertGenAITrace(trace: Trace): ConversionResult {
   }
 
   const deduplicated = deduplicateInvocations(invocations);
-  console.log(`  Final invocations count: ${deduplicated.length} (before dedup: ${invocations.length})`);
-  return { invocations: deduplicated, warnings };
+  const normalized = trimCumulativeToolTrajectory(deduplicated);
+  console.log(`  Final invocations count: ${normalized.length} (before dedup: ${invocations.length})`);
+  return { invocations: normalized, warnings };
 }
 
 function deduplicateInvocations(invocations: Invocation[]): Invocation[] {
@@ -446,18 +585,70 @@ function deduplicateInvocations(invocations: Invocation[]): Invocation[] {
   return invocations.filter((_, i) => keep.has(i));
 }
 
+function sameToolCall(a: ToolCall, b: ToolCall): boolean {
+  return a.name === b.name
+    && a.id === b.id
+    && JSON.stringify(a.args || {}) === JSON.stringify(b.args || {});
+}
+
+function sameToolResponse(a: ToolResponse, b: ToolResponse): boolean {
+  return a.name === b.name
+    && a.id === b.id
+    && JSON.stringify(a.response || {}) === JSON.stringify(b.response || {});
+}
+
+function startsWithToolCalls(current: ToolCall[], prefix: ToolCall[]): boolean {
+  if (prefix.length === 0 || current.length < prefix.length) return false;
+  for (let i = 0; i < prefix.length; i++) {
+    if (!sameToolCall(current[i], prefix[i])) return false;
+  }
+  return true;
+}
+
+function startsWithToolResponses(current: ToolResponse[], prefix: ToolResponse[]): boolean {
+  if (prefix.length === 0 || current.length < prefix.length) return false;
+  for (let i = 0; i < prefix.length; i++) {
+    if (!sameToolResponse(current[i], prefix[i])) return false;
+  }
+  return true;
+}
+
+function trimCumulativeToolTrajectory(invocations: Invocation[]): Invocation[] {
+  let prevToolUses: ToolCall[] = [];
+  let prevToolResponses: ToolResponse[] = [];
+
+  for (const inv of invocations) {
+    if (!inv.intermediateData) continue;
+    const uses = inv.intermediateData?.toolUses || [];
+    const responses = inv.intermediateData?.toolResponses || [];
+
+    if (prevToolUses.length > 0 && uses.length > prevToolUses.length && startsWithToolCalls(uses, prevToolUses)) {
+      inv.intermediateData.toolUses = uses.slice(prevToolUses.length);
+    }
+    if (
+      prevToolResponses.length > 0
+      && responses.length > prevToolResponses.length
+      && startsWithToolResponses(responses, prevToolResponses)
+    ) {
+      inv.intermediateData.toolResponses = responses.slice(prevToolResponses.length);
+    }
+
+    prevToolUses = uses;
+    prevToolResponses = responses;
+  }
+
+  return invocations;
+}
+
 function convertGenAIMultiTurn(llmSpans: Span[], trace: Trace): Invocation[] {
   const invocations: Invocation[] = [];
 
   // Get messages from the first LLM span (should have full conversation history)
   const firstLlmSpan = llmSpans[0];
-  const inputMessagesAttr = getInputMessagesAttr(firstLlmSpan) || '[]';
-  const outputMessagesAttr = getOutputMessagesAttr(firstLlmSpan) || '[]';
+  const allInputMessages = getInputMessages(firstLlmSpan);
+  const allOutputMessages = getOutputMessages(firstLlmSpan);
 
-  const allInputMessages = safeJsonParse<any[]>(inputMessagesAttr, []);
-  const allOutputMessages = safeJsonParse<any[]>(outputMessagesAttr, []);
-
-  if (!Array.isArray(allInputMessages) || !Array.isArray(allOutputMessages)) {
+  if (!Array.isArray(allInputMessages) || !Array.isArray(allOutputMessages) || allInputMessages.length === 0) {
     console.warn('  Input or output messages are not arrays, falling back to single invocation');
     const invocation = convertGenAIRootSpan(firstLlmSpan, trace);
     return invocation ? [invocation] : [];
@@ -601,11 +792,8 @@ function findDescendantToolSpans(root: Span): Span[] {
 }
 
 function extractGenAIUserContent(llmSpan: Span): Content | null {
-  const messagesAttr = getInputMessagesAttr(llmSpan);
-  if (!messagesAttr) return null;
-
-  const messages = safeJsonParse<any[] | null>(messagesAttr, null);
-  if (!messages || !Array.isArray(messages)) return null;
+  const messages = getInputMessages(llmSpan);
+  if (!Array.isArray(messages) || messages.length === 0) return null;
 
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -621,11 +809,8 @@ function extractGenAIUserContent(llmSpan: Span): Content | null {
 }
 
 function extractGenAIFinalResponse(llmSpan: Span): Content | null {
-  const completionAttr = getOutputMessagesAttr(llmSpan);
-  if (!completionAttr) return null;
-
-  const messages = safeJsonParse<any[] | null>(completionAttr, null);
-  if (!messages || !Array.isArray(messages)) return null;
+  const messages = getOutputMessages(llmSpan);
+  if (!Array.isArray(messages) || messages.length === 0) return null;
 
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -655,21 +840,16 @@ function extractGenAIToolTrajectory(toolSpans: Span[], llmSpans: Span[]): { tool
       // Fallback: extract args from gen_ai.input.messages when tool span
       // doesn't have gen_ai.tool.call.arguments (e.g. Strands)
       if (Object.keys(args).length === 0) {
-        const inputMsgsAttr = toolSpan.tags['gen_ai.input.messages'];
-        if (inputMsgsAttr) {
-          const inputMsgs = safeJsonParse<any[]>(inputMsgsAttr, []);
-          if (Array.isArray(inputMsgs)) {
-            for (const msg of inputMsgs) {
-              if (typeof msg !== 'object') continue;
-              for (const tc of extractToolCallsFromGenAIMessage(msg)) {
-                if (tc.name === toolName && Object.keys(tc.args).length > 0) {
-                  args = tc.args;
-                  break;
-                }
-              }
-              if (Object.keys(args).length > 0) break;
+        const inputMsgs = getInputMessages(toolSpan);
+        for (const msg of inputMsgs) {
+          if (typeof msg !== 'object') continue;
+          for (const tc of extractToolCallsFromGenAIMessage(msg)) {
+            if (tc.name === toolName && Object.keys(tc.args).length > 0) {
+              args = tc.args;
+              break;
             }
           }
+          if (Object.keys(args).length > 0) break;
         }
       }
 
@@ -692,11 +872,8 @@ function extractGenAIToolTrajectory(toolSpans: Span[], llmSpans: Span[]): { tool
   }
 
   for (const llmSpan of llmSpans) {
-    const completionAttr = getOutputMessagesAttr(llmSpan);
-    if (!completionAttr) continue;
-
-    let messages = safeJsonParse<any[] | null>(completionAttr, null);
-    if (!messages || !Array.isArray(messages)) continue;
+    let messages = getOutputMessages(llmSpan);
+    if (!Array.isArray(messages) || messages.length === 0) continue;
 
     messages = trimCumulativeOutput(llmSpan, messages);
 
@@ -717,6 +894,20 @@ function extractGenAIToolTrajectory(toolSpans: Span[], llmSpans: Span[]): { tool
         }
       }
     }
+  }
+
+  // Legacy Ollama traces may only carry tool trajectory in prompt history.
+  if (toolCallsById.size === 0 && toolCallsNoId.length === 0 && toolResponses.length === 0 && llmSpans.length > 0) {
+    const history = getInputMessages(llmSpans[llmSpans.length - 1]);
+    const fallback = extractToolsFromInputHistory(history);
+    for (const tc of fallback.toolUses) {
+      if (tc.id) {
+        toolCallsById.set(tc.id, tc);
+      } else {
+        toolCallsNoId.push(tc);
+      }
+    }
+    toolResponses.push(...fallback.toolResponses);
   }
 
   const toolUses = [...toolCallsById.values(), ...toolCallsNoId];

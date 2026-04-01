@@ -1,0 +1,7 @@
+langchain>=1.2.0
+langchain-ollama>=0.3.0
+
+opentelemetry-sdk>=1.36.0
+opentelemetry-exporter-otlp-proto-http>=1.36.0
+opentelemetry-instrumentation-ollama>=0.57.0
+python-dotenv>=1.0.0
