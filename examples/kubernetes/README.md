@@ -203,6 +203,8 @@ Once both sessions are complete:
 
 This captures the GPT-5 session's tool trajectory and final responses as the golden reference.
 
+<img width="1910" height="1498" alt="image" src="https://github.com/user-attachments/assets/2cabb4a8-c680-4742-a5be-403bac0487a3" />
+
 ### Step 7. Evaluate both sessions
 
 1. Go back to the sessions list
@@ -226,6 +228,12 @@ Compare the two sessions in the results table:
 - **Token usage**: The session metadata includes total token counts. If `gpt-5` consumed fewer tokens while achieving the same trajectory score, it may be the better choice for this use case.
 - **Tool trajectory**: If one agent called extra tools or skipped expected ones, the trajectory score reflects that.
 - **Response quality**: A lower response match score on the `gpt-4.1-mini` session highlights where the cheaper model diverged from the GPT-5 baseline.
+
+<img width="1914" height="1154" alt="image" src="https://github.com/user-attachments/assets/5939a8d4-3775-4cf1-9cf2-d3b6b4afd582" />
+
+You can also click an individual conversation and see a breakdown of each evaluators.
+
+<img width="1916" height="1348" alt="image" src="https://github.com/user-attachments/assets/984b3d29-8018-4fcb-9036-bb7c6e97d9ff" />
 
 ## Cleanup
 
