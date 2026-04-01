@@ -57,9 +57,7 @@ def _make_tool_trace(tools: list[str]) -> Trace:
         duration=1000,
         tags={
             "otel.scope.name": "gcp.vertex.agent",
-            "gcp.vertex.agent.llm_response": json.dumps(
-                {"content": {"role": "model", "parts": [{"text": "done"}]}}
-            ),
+            "gcp.vertex.agent.llm_response": json.dumps({"content": {"role": "model", "parts": [{"text": "done"}]}}),
         },
     )
     invoke.children = [call_llm_1, *tool_spans, call_llm_2]
@@ -88,10 +86,7 @@ def _make_eval_set_json(tools: list[str]) -> dict:
                             "parts": [{"text": "done"}],
                         },
                         "intermediate_data": {
-                            "tool_uses": [
-                                {"name": t, "args": {}, "id": f"e{i}"}
-                                for i, t in enumerate(tools)
-                            ],
+                            "tool_uses": [{"name": t, "args": {}, "id": f"e{i}"} for i, t in enumerate(tools)],
                             "tool_responses": [],
                         },
                     }
@@ -272,14 +267,10 @@ class TestTrajectoryMatchType:
     """
 
     def _run(self, match_type, tmp_path):
-        conv_result = convert_traces(
-            [_make_tool_trace(["helm_get_release", "helm_list_releases"])]
-        )[0]
+        conv_result = convert_traces([_make_tool_trace(["helm_get_release", "helm_list_releases"])])[0]
 
         eval_set_path = tmp_path / "eval_set.json"
-        eval_set_path.write_text(
-            json.dumps(_make_eval_set_json(["helm_list_releases", "helm_get_release"]))
-        )
+        eval_set_path.write_text(json.dumps(_make_eval_set_json(["helm_list_releases", "helm_get_release"])))
         eval_set = load_eval_set(str(eval_set_path))
 
         return asyncio.run(

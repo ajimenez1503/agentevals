@@ -69,13 +69,9 @@ def build_eval_metric(
 
     if metric_name == "tool_trajectory_avg_score":
         _match = (
-            ToolTrajectoryCriterion.MatchType[match_type]
-            if match_type
-            else ToolTrajectoryCriterion.MatchType.EXACT
+            ToolTrajectoryCriterion.MatchType[match_type] if match_type else ToolTrajectoryCriterion.MatchType.EXACT
         )
-        criterion = ToolTrajectoryCriterion(
-            threshold=effective_threshold, match_type=_match
-        )
+        criterion = ToolTrajectoryCriterion(threshold=effective_threshold, match_type=_match)
     elif metric_name == "final_response_match_v2":
         judge_opts = JudgeModelOptions()
         if judge_model:
@@ -210,9 +206,7 @@ async def evaluate_builtin_metric(
         )
 
     try:
-        eval_metric = build_eval_metric(
-            metric_name, judge_model, threshold, match_type=match_type
-        )
+        eval_metric = build_eval_metric(metric_name, judge_model, threshold, match_type=match_type)
         evaluator: Evaluator = get_evaluator(eval_metric)
 
         if inspect.iscoroutinefunction(evaluator.evaluate_invocations):
