@@ -69,11 +69,11 @@ def build_eval_metric(
 
     if metric_name == "tool_trajectory_avg_score":
         _match = (
-            ToolTrajectoryCriterion.MatchType[match_type.upper()]
+            ToolTrajectoryCriterion.MatchType[match_type]
             if match_type
             else ToolTrajectoryCriterion.MatchType.EXACT
         )
-        criterion = ToolTrajectoryCriterion(threshold=effective_threshold, matchType=_match)
+        criterion = ToolTrajectoryCriterion(threshold=effective_threshold, match_type=_match)
     elif metric_name == "final_response_match_v2":
         judge_opts = JudgeModelOptions()
         if judge_model:

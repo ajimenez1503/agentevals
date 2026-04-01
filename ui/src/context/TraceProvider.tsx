@@ -137,7 +137,7 @@ export const TraceProvider: React.FC<TraceProviderProps> = ({ children }) => {
               metrics: state.selectedMetrics,
               judgeModel: state.judgeModel,
               threshold: state.threshold,
-              trajectoryMatchType: state.trajectoryMatchType !== 'EXACT' ? state.trajectoryMatchType : undefined,
+              trajectoryMatchType: state.trajectoryMatchType,
             },
             (message) => {
               setState((prev) => ({ ...prev, progressMessage: message }));

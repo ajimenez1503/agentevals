@@ -197,12 +197,12 @@ async def _evaluate_trace(
     eval_set: EvalSet | None,
     judge_model: str | None,
     threshold: float | None,
-    trajectory_match_type: str | None = None,
     eval_semaphore: asyncio.Semaphore = None,
     progress_callback: ProgressCallback | None = None,
     trace_progress_callback: TraceProgressCallback | None = None,
     trace=None,
     performance_metrics: dict[str, Any] | None = None,
+    trajectory_match_type: str | None = None,
 ) -> TraceResult:
     trace_result = TraceResult(
         trace_id=conv_result.trace_id,
