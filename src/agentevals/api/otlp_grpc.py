@@ -22,6 +22,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_GRPC_MAX_CONCURRENT_RPCS = 32
+DEFAULT_GRPC_MAX_MESSAGE_BYTES = 8 * 1024 * 1024
+
 
 class OtlpTraceService(trace_service_pb2_grpc.TraceServiceServicer):
     """OTLP TraceService gRPC implementation."""
@@ -53,6 +56,9 @@ def create_otlp_grpc_server(
     host: str,
     port: int,
     manager: StreamingTraceManager,
+    *,
+    max_concurrent_rpcs: int = DEFAULT_GRPC_MAX_CONCURRENT_RPCS,
+    max_message_bytes: int = DEFAULT_GRPC_MAX_MESSAGE_BYTES,
 ) -> aio.Server:
     """Create an OTLP gRPC server bound to host:port."""
     try:
@@ -62,7 +68,14 @@ def create_otlp_grpc_server(
             "OTLP gRPC receiver requires grpcio. Install with: pip install grpcio"
         ) from exc
 
-    server = grpc.aio.server()
+    server = grpc.aio.server(
+        compression=grpc.Compression.Gzip,
+        maximum_concurrent_rpcs=max_concurrent_rpcs,
+        options=[
+            ("grpc.max_receive_message_length", max_message_bytes),
+            ("grpc.max_send_message_length", max_message_bytes),
+        ],
+    )
     trace_service_pb2_grpc.add_TraceServiceServicer_to_server(OtlpTraceService(manager), server)
     logs_service_pb2_grpc.add_LogsServiceServicer_to_server(OtlpLogsService(manager), server)
 
@@ -71,5 +84,10 @@ def create_otlp_grpc_server(
     if bound_port == 0:
         raise RuntimeError(f"Failed to bind OTLP gRPC receiver to {listen_addr}")
 
-    logger.info("OTLP gRPC receiver configured at %s", listen_addr)
+    logger.info(
+        "OTLP gRPC receiver configured at %s (gzip enabled, max_concurrent_rpcs=%d, max_msg=%d)",
+        listen_addr,
+        max_concurrent_rpcs,
+        max_message_bytes,
+    )
     return server

@@ -1,8 +1,10 @@
 """Tests for the OTLP HTTP receiver endpoints and session auto-management."""
 
 import asyncio
+import signal
 import sys
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -19,6 +21,7 @@ from agentevals.api.otlp_processing import (
     process_logs,
     process_traces,
 )
+from agentevals.cli import GRPC_SHUTDOWN_GRACE_SECONDS, _install_shared_exit_handler
 from agentevals.streaming.session import TraceSession
 from agentevals.streaming.ws_server import StreamingTraceManager
 
@@ -1581,7 +1584,7 @@ class TestCreateOtlpGrpcServer:
 
         class _FakeAio:
             @staticmethod
-            def server():
+            def server(**kwargs):
                 return fake_server
 
         fake_grpc = MagicMock()
@@ -1594,6 +1597,54 @@ class TestCreateOtlpGrpcServer:
                 port=4317,
                 manager=MagicMock(),
             )
+
+
+class _FakeGrpcServer:
+    def __init__(self):
+        self.grace_values: list[float | None] = []
+
+    async def stop(self, grace: float | None) -> None:
+        self.grace_values.append(grace)
+
+
+class TestInstallSharedExitHandler:
+    def test_first_sigint_gracefully_stops_grpc(self):
+        async def go():
+            server_a = SimpleNamespace(should_exit=False, force_exit=False, handle_exit=None)
+            server_b = SimpleNamespace(should_exit=False, force_exit=False, handle_exit=None)
+            grpc_server = _FakeGrpcServer()
+
+            _install_shared_exit_handler(server_a, server_b, grpc_server=grpc_server)
+
+            server_a.handle_exit(signal.SIGINT, None)
+            await asyncio.sleep(0)
+
+            assert server_a.should_exit is True
+            assert server_b.should_exit is True
+            assert server_a.force_exit is False
+            assert server_b.force_exit is False
+            assert grpc_server.grace_values == [GRPC_SHUTDOWN_GRACE_SECONDS]
+
+        _run(go())
+
+    def test_second_sigint_force_stops_grpc(self):
+        async def go():
+            server_a = SimpleNamespace(should_exit=False, force_exit=False, handle_exit=None)
+            server_b = SimpleNamespace(should_exit=False, force_exit=False, handle_exit=None)
+            grpc_server = _FakeGrpcServer()
+
+            _install_shared_exit_handler(server_a, server_b, grpc_server=grpc_server)
+
+            server_a.handle_exit(signal.SIGINT, None)
+            await asyncio.sleep(0)
+            server_a.handle_exit(signal.SIGINT, None)
+            await asyncio.sleep(0)
+
+            assert server_a.force_exit is True
+            assert server_b.force_exit is True
+            assert grpc_server.grace_values == [GRPC_SHUTDOWN_GRACE_SECONDS, None]
+
+        _run(go())
 
 
 class TestGrpcServices:

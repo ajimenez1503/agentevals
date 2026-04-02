@@ -479,25 +479,46 @@ def evaluator_config(name: str, evaluator_path: str | None, threshold: float | N
     click.echo(rendered)
 
 
-def _link_server_shutdown(*servers) -> None:
-    """Link multiple uvicorn servers so a single SIGINT shuts down all of them.
+def _install_shared_exit_handler(
+    *uvicorn_servers,
+    grpc_server,
+) -> None:
+    """Install one exit handler that coordinates uvicorn and gRPC shutdown.
 
     Uvicorn installs per-server signal handlers; the last server's handler
     overwrites earlier ones.  This replaces handle_exit on every server with
-    a shared callback that sets should_exit / force_exit on all of them.
+    a shared callback that sets should_exit / force_exit on all of them and
+    requests gRPC shutdown alongside the uvicorn servers.
     """
     import signal as _signal
 
+    loop = asyncio.get_running_loop()
+    shutdown_requested = False
+
+    def _request_grpc_shutdown(force: bool) -> None:
+        if loop.is_closed():
+            return
+        grace = None if force else GRPC_SHUTDOWN_GRACE_SECONDS
+        loop.create_task(grpc_server.stop(grace=grace))
+
     def _shared_exit(sig, frame):
-        force = all(s.should_exit for s in servers)
-        for s in servers:
-            if force and sig == _signal.SIGINT:
+        nonlocal shutdown_requested
+        force = shutdown_requested and sig == _signal.SIGINT
+        shutdown_requested = True
+
+        for s in uvicorn_servers:
+            if force:
                 s.force_exit = True
             else:
                 s.should_exit = True
 
-    for s in servers:
+        _request_grpc_shutdown(force)
+
+    for s in uvicorn_servers:
         s.handle_exit = _shared_exit
+
+
+GRPC_SHUTDOWN_GRACE_SECONDS = 5
 
 
 async def _run_servers(
@@ -522,11 +543,13 @@ async def _run_servers(
     if reload_dirs:
         shared_kwargs["reload_dirs"] = reload_dirs
 
+    # TODO #99 Create the manager and pass it into the Server constructors instead of injecting it into the app state.
+
     main_server = uvicorn.Server(uvicorn.Config("agentevals.api.app:app", port=port, **shared_kwargs))
     otlp_http_server = uvicorn.Server(
         uvicorn.Config("agentevals.api.otlp_app:otlp_app", port=otlp_http_port, **shared_kwargs)
     )
-    servers: list = [main_server, otlp_http_server]
+    uvicorn_servers: list = [main_server, otlp_http_server]
 
     if mcp_port is not None:
         from .mcp_server import create_server as create_mcp_server
@@ -540,9 +563,8 @@ async def _run_servers(
         mcp_app = mcp_instance.streamable_http_app()
         mcp_kwargs = {**shared_kwargs, "reload": False, "port": mcp_port}
         mcp_uvicorn = uvicorn.Server(uvicorn.Config(mcp_app, **mcp_kwargs))
-        servers.append(mcp_uvicorn)
+        uvicorn_servers.append(mcp_uvicorn)
 
-    _link_server_shutdown(*servers)
     from .api.app import app as main_app
     from .api.dependencies import require_trace_manager_from_app
     from .api.otlp_grpc import create_otlp_grpc_server
@@ -551,10 +573,17 @@ async def _run_servers(
     otlp_grpc_server = create_otlp_grpc_server(host=host, port=otlp_grpc_port, manager=mgr)
     await otlp_grpc_server.start()
 
+    _install_shared_exit_handler(
+        *uvicorn_servers,
+        otlp_grpc_server,
+    )
+
     try:
-        await asyncio.gather(*(s.serve() for s in servers))
+        await asyncio.gather(*(s.serve() for s in uvicorn_servers))
     finally:
-        await otlp_grpc_server.stop(grace=1)
+        # The shared exit handler only requests gRPC shutdown on SIGINT/SIGTERM.
+        # We still await a final stop here so non-signal exits also clean up.
+        await otlp_grpc_server.stop(grace=GRPC_SHUTDOWN_GRACE_SECONDS)
 
 
 @main.command("serve")
