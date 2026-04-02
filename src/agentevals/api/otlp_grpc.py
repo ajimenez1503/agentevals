@@ -65,9 +65,7 @@ def create_otlp_grpc_server(
     try:
         import grpc
     except ImportError as exc:  # pragma: no cover - environment-dependent
-        raise RuntimeError(
-            "OTLP gRPC receiver requires grpcio. Install with: pip install grpcio"
-        ) from exc
+        raise RuntimeError("OTLP gRPC receiver requires grpcio. Install with: pip install grpcio") from exc
 
     server = grpc.aio.server(
         compression=grpc.Compression.Gzip,

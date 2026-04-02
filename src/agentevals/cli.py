@@ -492,7 +492,7 @@ def _install_shared_exit_handler(
     requests gRPC shutdown alongside the uvicorn servers.
     """
     import signal as _signal
-    
+
     loop = asyncio.get_running_loop()
     shutdown_requested = False
 
@@ -516,6 +516,7 @@ def _install_shared_exit_handler(
 
     for s in uvicorn_servers:
         s.handle_exit = _shared_exit
+
 
 async def _run_servers(
     host: str,

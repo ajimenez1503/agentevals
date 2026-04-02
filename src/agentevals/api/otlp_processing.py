@@ -345,5 +345,3 @@ def _parse_otlp_body(body_raw: dict) -> dict | str:
         except (json.JSONDecodeError, TypeError):
             return raw
     return _parse_otlp_any_value(body_raw)
-
-

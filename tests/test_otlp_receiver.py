@@ -1690,9 +1690,7 @@ class TestGrpcServices:
                 span_id=_hex_to_bytes(SPAN_ID_HEX),
                 body=AnyValue(string_value='{"content": "hello from grpc"}'),
             )
-            log_record.attributes.append(
-                KeyValue(key="event.name", value=AnyValue(string_value="gen_ai.user.message"))
-            )
+            log_record.attributes.append(KeyValue(key="event.name", value=AnyValue(string_value="gen_ai.user.message")))
             scope_logs = ScopeLogs(log_records=[log_record])
             resource_logs = ResourceLogs(scope_logs=[scope_logs])
             request = LogsServiceRequestPB(resource_logs=[resource_logs])
