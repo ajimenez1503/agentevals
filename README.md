@@ -35,10 +35,11 @@ agentevals scores performance and inference quality from OpenTelemetry traces. N
 
 agentevals is a framework-agnostic evaluation solution that scores AI agent behavior directly from [OpenTelemetry](https://opentelemetry.io/) traces. Record your agent's actions once, then evaluate as many times as you want. No re-runs, no guesswork.
 
-It works with any OTel-instrumented framework (LangChain, Strands, Google ADK, OpenAI Agents SDK, and others), supports Jaeger JSON and OTLP trace formats, and ships with built-in evaluators, custom evaluator support, and LLM-based judges.
+It works with any OTel-instrumented framework (LangChain, Strands, Google ADK, OpenAI Agents SDK, and others), supports Jaeger JSON and native OTLP trace formats, and ships with built-in evaluators, custom evaluator support, and LLM-based judges.
 
 - **CLI** for scripting and CI pipelines
 - **Web UI** for visual inspection and local developer experience
+- **Kubernetes and OTel support** so you can deploy right next to your agents; works natively in your OpenTelemetry pipeline
 - **MCP server** so MCP clients can run evaluations from a conversation
 
 ## Why agentevals?
@@ -48,7 +49,7 @@ Most evaluation tools require you to **re-execute your agent** for every test, b
 - **No re-execution**: score agents from existing traces without replaying expensive LLM calls
 - **Framework-agnostic**: works with any agent framework that emits OpenTelemetry spans
 - **Golden eval sets**: compare actual behavior against defined expected behaviors for deterministic pass/fail gating
-- **Custom evaluators**: write scoring logic in Python, JavaScript, or any language
+- **Custom evaluators**: write scoring logic in Python, JavaScript, or any language, or offload scoring to OpenAI Eval API
 - **CI/CD ready**: gate deployments on quality thresholds directly in your pipeline
 - **Local-first**: no cloud dependency required; everything runs on your machine
 
@@ -110,7 +111,9 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for build instructions.
 
 Examples use `agentevals` on your PATH after `pip install agentevals-cli`. If you are working from a clone of this repo, use `uv run agentevals` instead.
 
-Run an evaluation against a sample trace:
+The `samples/` directory includes real traces from a Kubernetes Helm agent and matching eval sets that define expected behavior (which tools should be called, what the response should contain).
+
+**Score a trace against an eval set:**
 
 ```bash
 agentevals run samples/helm.json \
@@ -118,17 +121,65 @@ agentevals run samples/helm.json \
   -m tool_trajectory_avg_score
 ```
 
-List available evaluators:
+The agent was asked to list Helm releases. The eval set expects a call to `helm_list_releases`. It matches:
 
-```bash
-agentevals evaluator list
+```
+Trace: 3e289017fe03ffd7c4145316d2eb3d0d
+Invocations: 1
+        Metric                       Score  Status      Per-Invocation  Time
+------  -------------------------  -------  --------  ----------------  ------
+[PASS]  tool_trajectory_avg_score        1  PASSED                   1  0ms
 ```
 
-## Integration
+**Catch a mismatch.** Run a different trace against the same eval set:
+
+```bash
+agentevals run samples/k8s.json \
+  --eval-set samples/eval_set_helm.json \
+  -m tool_trajectory_avg_score
+```
+
+This trace is from a different agent session that never called the expected tool. The evaluation fails:
+
+```
+[FAIL]  tool_trajectory_avg_score        0  FAILED                   0  0ms
+  Invocation 1 trajectory mismatch:
+    Expected:
+      - helm_list_releases({})
+    Actual:
+      (none)
+```
+
+**Evaluate multiple dimensions at once:**
+
+```bash
+agentevals run samples/helm_3.json \
+  --eval-set samples/evalset_helm_3_2026-02-23.json \
+  -m tool_trajectory_avg_score \
+  -m response_match_score
+```
+
+`tool_trajectory_avg_score` checks whether the right tools were called. `response_match_score` checks whether the agent's final answer matches the expected response.
+
+**Explore visually.** Launch the Web UI and upload traces from the browser:
+
+```bash
+agentevals serve
+# opens http://localhost:8001
+```
+
+You can also point any OTel-instrumented agent directly at the built-in receiver (`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`). The UI streams tool calls, inputs, and outputs live as your agent runs. For production setups, the same receiver slots into a Kubernetes OTel Collector pipeline as an exporter destination. See [Integration](#integration) and the [Kubernetes example](examples/kubernetes/README.md) for walkthroughs.
+
+**Next steps:**
+
+- `agentevals evaluator list` to see all built-in and community evaluators
+- [Custom Evaluators](#custom-evaluators) to write your own scoring logic
+
+## Use-cases and integrations
 
 ### Zero-Code (Recommended)
 
-Point any OTel-instrumented agent at the receiver. No SDK, no code changes:
+Point any OTel-instrumented agent at the agentevals receiver. No SDK, no code changes:
 
 ```bash
 # Terminal 1
@@ -151,7 +202,7 @@ Traces stream to the UI in real-time. Works with LangChain, Strands, Google ADK,
 
 See [examples/zero-code-examples/](examples/zero-code-examples/) for working examples.
 
-### SDK
+### AgentEvals SDK
 
 For programmatic session lifecycle and decorator API:
 
@@ -166,7 +217,7 @@ with app.session(eval_set_id="my-eval"):
 
 Requires `pip install "agentevals-cli[streaming]"`. See [examples/sdk_example/](examples/sdk_example/) for framework-specific patterns.
 
-## CLI
+## CLI for local testing, and CI pipelines
 
 ```bash
 # Multiple traces, JSON output
@@ -311,41 +362,53 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for build tiers, Makefile targets, and Nix 
 ## FAQ
 
 **Do I need a database or any infrastructure to run agentevals?**
+
 No. agentevals is a single `pip install` with no database, no message queue, and no external services. The CLI evaluates trace files directly from disk. The web UI and live streaming use in-memory session state. You can go from zero to scored traces in under a minute.
 
 **Does the CLI require a running server?**
+
 No. `agentevals run` evaluates trace files entirely offline. The server (`agentevals serve`) is only needed for the web UI, live OTLP streaming, and server-dependent MCP tools like `list_sessions`.
 
 **Can I use agentevals in CI/CD?**
+
 Yes. The CLI is designed for pipeline use: pass trace files and an eval set, set a threshold, and let the exit code gate your deployment. Combine it with `--output json` for machine-readable results. No server process needed.
 
 **What if I switch agent frameworks?**
+
 Because agentevals uses OpenTelemetry as its universal interface, switching frameworks (e.g., from LangChain to Strands, or from ADK to OpenAI Agents) does not require changing your evaluation setup. As long as your new framework emits OTel spans, the same eval sets and metrics work as before.
 
 **Can I write evaluators in my own language?**
+
 Yes. A custom evaluator is any program that reads JSON from stdin and writes a score to stdout. Python and JavaScript have first-class scaffolding support (`agentevals evaluator init`), but any language works. If your evaluator has a `requirements.txt`, agentevals manages a cached virtual environment automatically.
 
 **Can I plug agentevals into an existing OTel pipeline?**
+
 Yes. The OTLP receiver on port 4318 accepts standard `http/protobuf` and `http/json` trace exports, so it slots into any OpenTelemetry pipeline as just another exporter destination. If your pipeline uses gRPC (port 4317), place an [OTel Collector](https://opentelemetry.io/docs/collector/) in front to bridge gRPC to HTTP. The [Kubernetes example](examples/kubernetes/README.md) shows this exact pattern.
 
 **Can I deploy agentevals on Kubernetes?**
+
 Yes. A Dockerfile and a [Helm chart](charts/agentevals/) are included. A single pod exposes the web UI (8001), OTLP receiver (4318), and MCP server (8080). See the [Kubernetes example](examples/kubernetes/README.md) for a full walkthrough deploying agentevals alongside kagent and an OTel Collector.
 
 **How does this compare to ADK's evaluations?**
-Unlike ADK's LocalEvalService, which couples agent execution with evaluation, agentevals only handles scoring: it takes pre-recorded traces and compares them against expected behavior using metrics like tool trajectory matching, response quality, and LLM-based judgments.
+
+Unlike ADK's eval method, which couples agent execution with evaluation, agentevals only handles scoring: it takes pre-recorded traces and compares them against expected behavior using metrics like tool trajectory matching, response quality, and LLM-based judgments.
 
 However, if you're iterating on your agents locally, you can point your agents to agentevals and you will see rich runtime information in your browser. For more details, use the bundled wheel and explore the Local Development option in the UI.
 
 **How does this compare to Bedrock AgentCore's evaluation?**
+
 AgentCore's evaluation integration (via `strands-agents-evals`) also couples agent execution with evaluation. It re-invokes the agent for each test case, converts the resulting OTel spans to AWS's ADOT format, and scores them against 4 built-in evaluators (Helpfulness, Accuracy, Harmfulness, Relevance) via a cloud API call. This means you need an AWS account, valid credentials, and network access for every evaluation.
 
 agentevals takes a different approach: it scores pre-recorded traces locally without re-running anything. It works with standard Jaeger JSON and OTLP formats from any framework, supports open-ended metrics (tool trajectory matching, LLM-based judges, custom scorers), and ships with a CLI, web UI, and MCP server. No cloud dependency required, though we do include all ADK's GCP-based evals as of now.
 
 **How does this compare to LangSmith?**
+
 LangSmith is a cloud platform (self-hosting requires an Enterprise plan) where offline evaluation re-executes your application against curated datasets. Its deepest integration is with LangChain/LangGraph, though it can work with other frameworks. agentevals scores pre-recorded OTel traces without re-execution, requires no cloud account or enterprise license, and uses OpenTelemetry as the universal interface rather than a proprietary SDK.
 
 **How does this compare to Langfuse?**
+
 Langfuse is a full observability platform (requires Postgres, ClickHouse, Redis, and S3 for self-hosting) that supports both offline experiments (re-execution) and online evaluation of ingested traces. Traces must be ingested into Langfuse first via its SDK or OTel integration before they can be scored. agentevals evaluates raw OTel trace files or live OTLP streams directly with no database or platform infrastructure required.
 
 **How does this compare to Opik?**
+
 Opik's primary evaluation path re-runs your application code against a dataset, incurring additional LLM costs per eval run. It also supports online evaluation rules that auto-score production traces. While Opik supports OpenTelemetry ingestion alongside its own SDK, its evaluation workflow still centers on re-execution against datasets. agentevals evaluates pre-recorded OTel traces from any framework without re-execution, and runs entirely locally with no cloud dependency.
