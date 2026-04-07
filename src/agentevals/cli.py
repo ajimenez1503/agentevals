@@ -534,8 +534,6 @@ async def _run_servers(
     otlp_grpc_port: int,
     *,
     mcp_port: int | None = None,
-    reload: bool = False,
-    reload_dirs: list[str] | None = None,
     log_level: str = "warning",
 ) -> None:
     """Start API, OTLP HTTP+gRPC receivers, and optional MCP (Streamable HTTP)."""
@@ -547,11 +545,8 @@ async def _run_servers(
 
     shared_kwargs: dict = {
         "host": host,
-        "reload": reload,
         "log_level": log_level,
     }
-    if reload_dirs:
-        shared_kwargs["reload_dirs"] = reload_dirs
 
     mgr = StreamingTraceManager()
     main_app = create_app(trace_manager=mgr, enable_streaming=True)
@@ -703,8 +698,6 @@ def serve(
         click.echo("Waiting for agent connections...")
         click.echo()
 
-        src_path = Path(__file__).parent.parent
-        reload_dirs = [str(src_path)]
         asyncio.run(
             _run_servers(
                 host,
@@ -712,8 +705,6 @@ def serve(
                 otlp_http_port,
                 otlp_grpc_port,
                 mcp_port=mcp_port,
-                reload=True,
-                reload_dirs=reload_dirs,
                 log_level="info",
             )
         )

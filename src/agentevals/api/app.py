@@ -33,7 +33,7 @@ except ImportError:
     pass
 
 
-def _build_lifespan(*, manage_trace_manager_lifecycle: bool):
+def _build_lifespan():
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         log_level_str = os.getenv("AGENTEVALS_LOG_LEVEL", "INFO").upper()
@@ -49,10 +49,10 @@ def _build_lifespan(*, manage_trace_manager_lifecycle: bool):
             log_buffer.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
             ae_logger.addHandler(log_buffer)
         mgr = getattr(app.state, "trace_manager", None)
-        if manage_trace_manager_lifecycle and mgr:
+        if mgr:
             mgr.start_cleanup_task()
         yield
-        if manage_trace_manager_lifecycle and mgr:
+        if mgr:
             await mgr.shutdown()
         ae_logger.removeHandler(log_buffer)
 
@@ -63,14 +63,13 @@ def create_app(
     *,
     trace_manager: StreamingTraceManager | None = None,
     enable_streaming: bool = False,
-    manage_trace_manager_lifecycle: bool = True,
 ) -> FastAPI:
     """Create the main agentevals API app."""
     app = FastAPI(
         title="agentevals API",
         version=__version__,
         description="REST API for evaluating agent traces using ADK's scoring framework",
-        lifespan=_build_lifespan(manage_trace_manager_lifecycle=manage_trace_manager_lifecycle),
+        lifespan=_build_lifespan(),
     )
 
     app.add_middleware(

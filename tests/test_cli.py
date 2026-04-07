@@ -73,6 +73,10 @@ async def test_run_servers_shares_one_trace_manager_across_live_servers(monkeypa
     assert captured["port"] == 4317
     assert main_app.state.trace_manager is manager
     assert otlp_app.state.trace_manager is manager
+    assert "reload" not in created_servers[0].config.kwargs
+    assert "reload_dirs" not in created_servers[0].config.kwargs
+    assert "reload" not in created_servers[1].config.kwargs
+    assert "reload_dirs" not in created_servers[1].config.kwargs
     assert fake_grpc_server.started is True
     assert created_servers[0].handle_exit is not None
     assert created_servers[1].handle_exit is not None
